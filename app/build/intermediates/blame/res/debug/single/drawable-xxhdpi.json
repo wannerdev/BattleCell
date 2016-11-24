@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\drawable-xxhdpi\\sword_cell_v1.png",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\drawable-xxhdpi\\sword_cell_v1.png"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\drawable-xxhdpi\\ic_launcher.png",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\drawable-xxhdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\drawable-xxhdpi\\sword_cell.png",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\drawable-xxhdpi\\sword_cell.png"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\drawable-xxhdpi\\bug_icon.png",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\drawable-xxhdpi\\bug_icon.png"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\drawable-xxhdpi\\splash.png",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\drawable-xxhdpi\\splash.png"
+    }
+]

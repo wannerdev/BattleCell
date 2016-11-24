@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        is-multidex="true"
+        jar="D:\Wichtig\Programmieren\Java\studio\app\build\intermediates\incremental-classes\debug\instant-run-bootstrap.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="21.1.2"
+        sha1="62376042de6caf636c3a29a5c3aeb72d4260e71f">
+        <dex dex="D:\Wichtig\Programmieren\Java\studio\app\build\intermediates\transforms\dex\debug\folders\1000\10\instant-run-bootstrap_5bbfdf88e01682b50be9bd5fe83bbf7ba87c9c8f\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="D:\Wichtig\Programmieren\Java\studio\app\build\intermediates\exploded-aar\com.android.support\gridlayout-v7\18.0.0\jars\classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="21.1.2"
+        sha1="dafab6ae358e6c801605d50ff1fa761e77200c1a">
+        <dex dex="D:\Wichtig\Programmieren\Java\studio\app\build\intermediates\transforms\dex\debug\folders\1000\10\com.android.support-gridlayout-v7-18.0.0_c2d05d2751279c25f9ec6b993cdff5181277f04f\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="C:\Users\johan\AppData\Local\Android\Sdk\extras\android\m2repository\com\android\support\support-v4\19.1.0\support-v4-19.1.0.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="21.1.2"
+        sha1="85f201b380937e61a9dce6ca90ccf6872abbfb67">
+        <dex dex="D:\Wichtig\Programmieren\Java\studio\app\build\intermediates\transforms\dex\debug\folders\1000\10\support-v4-19.1.0_4419e42881571745dd29a5610c8ee4a7854c5a32\classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="D:\Wichtig\Programmieren\Java\studio\app\build\intermediates\incremental-runtime-classes\debug\instant-run.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="21.1.2"
+        sha1="1c1fbcb6c4ae6598586f895bf74d2a896fe59720">
+        <dex dex="D:\Wichtig\Programmieren\Java\studio\app\build\intermediates\transforms\dex\debug\folders\1000\10\instant-run_71ba604ba91f8bf4d00c75128545ec9be83ff304\classes.dex" />
+    </item>
+
+</items>

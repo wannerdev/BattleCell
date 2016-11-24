@@ -1,0 +1,38 @@
+[
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\device_list.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\device_list.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\activity_fight_random.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\activity_fight_random.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\activity_training_games.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\activity_training_games.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\activity_character.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\activity_character.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\activity_name.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\activity_name.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\activity_search.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\activity_search.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\activity_main.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\activity_main.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\device_detail.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\device_detail.xml"
+    },
+    {
+        "merged": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\build\\intermediates\\res\\merged\\debug\\layout\\row_devices.xml",
+        "source": "D:\\Wichtig\\Programmieren\\Java\\studio\\app\\src\\main\\res\\layout\\row_devices.xml"
+    }
+]

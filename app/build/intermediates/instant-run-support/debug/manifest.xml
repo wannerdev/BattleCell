@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.battlecell"
+    android:versionCode="1"
+    android:versionName="1.0" >
+
+    <uses-sdk
+        android:minSdkVersion="16"
+        android:targetSdkVersion="18" />
+
+    <uses-permission
+        android:name="android.permission.ACCESS_WIFI_STATE"
+        android:required="true" />
+    <uses-permission
+        android:name="android.permission.CHANGE_WIFI_STATE"
+        android:required="true" />
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        android:required="true" />
+
+    <application
+        android:name="com.android.tools.fd.runtime.BootstrapApplication"
+        android:allowBackup="true"
+        android:icon="@drawable/sword_cell_v1"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme" >
+        <activity
+            android:name="com.example.battlecell.MainActivity"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.example.battlecell.NameActivity"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait" >
+            <action android:name="com.hmkcode.android.NAMEACTIVITY" />
+
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+        <activity
+            android:name="com.example.battlecell.SearchActivity"
+            android:label="@string/app_name" >
+            <action android:name="com.hmkcode.android.SEARCHACTIVITY" />
+
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+        <activity
+            android:name="com.example.battlecell.BattleActivity"
+            android:label="@string/app_name" >
+            <action android:name="com.hmkcode.android.BATTLEACTIVITY" />
+
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+        <activity
+            android:name="com.example.battlecell.CharacterOverviewActivity"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait" >
+            <action android:name="com.hmkcode.android.CharacterOverviewACTIVITY" />
+
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+        <activity
+            android:name="com.example.battlecell.TrainingActivity"
+            android:label="@string/app_name"
+            android:screenOrientation="portrait" >
+            <action android:name="com.hmkcode.android.TRAININGACTIVITY" />
+
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+        <activity
+            android:name="com.example.battlecell.Game2Activity"
+            android:label="@string/app_name" >
+            <action android:name="com.hmkcode.android.GAME2ACTIVITY" />
+
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+        <activity android:name="com.example.battlecell.FightRandomActivity" >
+            <action android:name="com.example.battlecell.FightRandomActivity" />
+
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+    </application>
+
+</manifest>
