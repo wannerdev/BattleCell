@@ -1,19 +1,28 @@
 # BattleCell App Documentation
 
-This App wants to be an enjoyable Game which is oriented in some sort after an browsergame where a player has its own attributes he can increase by his own training and testing his game-character against other players.
+This App wants to be an enjoyable Game which is oriented in some sort after browsergames.
+There a player has its own attributes he can increase by his own training and testing his game-character against other players.
 
 
 # What it does:
-The App asks on first execution how you want to name your character. Then your shown the Main Menu in which they player has 3 Options to choose from Search for players, Training and Your character.
+The App asks on first execution how you want to name your character.
+Then your shown the Main Menu in which they player has 3 Options to choose from Search for players, Training and Your character.
 
 “Search for players”: The player sees a list which of android devices to attack.(not functional)
-There is a button to fight against a NPC. There he is matched against a random generated Character. The matching consists of comparing the power attribute of both characters, the one with the higher value wins. In the special case of equality, a game of Russian roulette is started. 
+There is a button to fight against a NPC.
+There he is matched against a random generated Character.
+The matching consists of comparing the power attribute of both characters, the one with the higher value wins.
+In the special case of equality, a game of Russian roulette is started.
+
 “Training”: Here you can choose between 2 games of chasing a bug.
 Game1:
-Starts a game where you have to touch a running picture on its way to the center of the screen.It walks a set path but has a randomized start position. If you touch it, you win. If it reaches the center you lose. The difficulty lays in the speed and the visibility of the picture. When won your power attribute is increased.
+Starts a game where you have to touch a running picture on its way to the center of the screen.
+It walks a set path but has a randomized start position. If you touch it, you win. 
+If it reaches the center you lose. The difficulty lays in the speed and the visibility of the picture. 
+When won your power attribute is increased.
 Game2:
 This game basicaly is just a version with higher dificultie since the bug is seldom visible. 
-But there is a higher reward for it since the amount of power the character gains is directly correlated with the time needed to catch  the bug. 
+But there is a higher reward for winning since the amount of power the character gains is directly correlated with the time needed to catch  the bug. 
  
 “Your character” displays all data from your character.
 
