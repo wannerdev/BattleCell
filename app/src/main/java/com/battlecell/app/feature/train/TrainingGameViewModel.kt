@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.battlecell.app.data.repository.PlayerRepository
 import com.battlecell.app.domain.model.AttributeType
 import com.battlecell.app.domain.model.TrainingGameDefinition
+import com.battlecell.app.domain.model.TrainingGameType
 import com.battlecell.app.domain.usecase.GetTrainingGamesUseCase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +66,8 @@ class TrainingGameViewModel(
 
     fun recordOutcome(
         elapsedMillis: Long,
-        didWin: Boolean
+        didWin: Boolean,
+        score: Int = 0
     ) {
         val definition = definitionFlow.value ?: return
         viewModelScope.launch {
@@ -81,8 +83,8 @@ class TrainingGameViewModel(
                 return@launch
             }
 
-            val experienceGain = computeExperience(definition, elapsedMillis)
-            val attributeGain = computeAttributeGain(definition, elapsedMillis)
+            val experienceGain = computeExperience(definition, elapsedMillis, score, didWin)
+            val attributeGain = computeAttributeGain(definition, elapsedMillis, score, didWin)
 
             var updated = player
                 .gainExperience(experienceGain)
@@ -91,7 +93,7 @@ class TrainingGameViewModel(
                 }
 
             updated = updated.copy(
-                skillPoints = updated.skillPoints + computeSkillPointBonus(definition, elapsedMillis)
+                skillPoints = updated.skillPoints + computeSkillPointBonus(definition, elapsedMillis, score, didWin)
             )
 
             playerRepository.upsert(updated)
@@ -108,37 +110,107 @@ class TrainingGameViewModel(
 
     private fun computeExperience(
         definition: TrainingGameDefinition,
-        elapsedMillis: Long
+        elapsedMillis: Long,
+        score: Int,
+        didWin: Boolean
     ): Int {
         val base = definition.displayReward
-        return if (definition.behavior.flickerEnabled) {
-            val bonus = max(0, (definition.behavior.totalDurationMillis - elapsedMillis).toInt())
-            base + (bonus / 40)
-        } else {
-            base
+        return when (definition.gameType) {
+            TrainingGameType.BUG_HUNT -> {
+                if (definition.behavior.flickerEnabled) {
+                    val bonus = max(0, (definition.behavior.totalDurationMillis - elapsedMillis).toInt())
+                    base + (bonus / 40)
+                } else {
+                    base
+                }
+            }
+
+            TrainingGameType.FLAPPY_FLIGHT -> {
+                val duration = definition.behavior.totalDurationMillis.takeIf { it > 0 } ?: 45000
+                val progress = (elapsedMillis.toFloat() / duration).coerceIn(0f, 1f)
+                val bonus = (base * (0.6f + progress * 0.8f)).roundToInt()
+                bonus + if (didWin) base / 4 else 0
+            }
+
+            TrainingGameType.DOODLE_JUMP -> {
+                val performance = max(0, score / 20)
+                base + performance + if (didWin) base / 3 else 0
+            }
+
+            TrainingGameType.SUBWAY_RUN -> {
+                val runtimeBonus = max(0, (elapsedMillis / 700L).toInt())
+                base + runtimeBonus + if (didWin) base / 5 else 0
+            }
         }
     }
 
     private fun computeAttributeGain(
         definition: TrainingGameDefinition,
-        elapsedMillis: Long
+        elapsedMillis: Long,
+        score: Int,
+        didWin: Boolean
     ): Int {
-        return if (definition.behavior.flickerEnabled) {
-            val remaining = max(0L, definition.behavior.totalDurationMillis.toLong() - elapsedMillis)
-            val bonus = (remaining / 900.0).roundToInt()
-            max(1, bonus + 1)
-        } else {
-            1
+        return when (definition.gameType) {
+            TrainingGameType.BUG_HUNT -> {
+                if (definition.behavior.flickerEnabled) {
+                    val remaining = max(0L, definition.behavior.totalDurationMillis.toLong() - elapsedMillis)
+                    val bonus = (remaining / 900.0).roundToInt()
+                    max(1, bonus + 1)
+                } else {
+                    1
+                }
+            }
+
+            TrainingGameType.FLAPPY_FLIGHT -> {
+                val duration = definition.behavior.totalDurationMillis.takeIf { it > 0 } ?: 45000
+                val tiers = (elapsedMillis / 15000L).coerceAtLeast(0)
+                max(1, tiers.toInt() + if (didWin) 2 else 1)
+            }
+
+            TrainingGameType.DOODLE_JUMP -> {
+                val target = definition.behavior.targetScore.takeIf { it > 0 } ?: 600
+                val ratio = (score.toFloat() / target).coerceIn(0f, 1.5f)
+                max(1, (1 + ratio * 2.2f).roundToInt())
+            }
+
+            TrainingGameType.SUBWAY_RUN -> {
+                val stamina = (elapsedMillis / 20000L).coerceAtLeast(0)
+                max(1, stamina.toInt() + if (didWin) 1 else 0)
+            }
         }
     }
 
     private fun computeSkillPointBonus(
         definition: TrainingGameDefinition,
-        elapsedMillis: Long
+        elapsedMillis: Long,
+        score: Int,
+        didWin: Boolean
     ): Int {
-        if (!definition.behavior.flickerEnabled) return 0
-        val remaining = max(0L, definition.behavior.totalDurationMillis.toLong() - elapsedMillis)
-        return min(2, (remaining / 1500L).toInt())
+        return when (definition.gameType) {
+            TrainingGameType.BUG_HUNT -> {
+                if (!definition.behavior.flickerEnabled) return 0
+                val remaining = max(0L, definition.behavior.totalDurationMillis.toLong() - elapsedMillis)
+                min(2, (remaining / 1500L).toInt())
+            }
+
+            TrainingGameType.FLAPPY_FLIGHT -> {
+                val duration = definition.behavior.totalDurationMillis.takeIf { it > 0 } ?: 45000
+                if (didWin && elapsedMillis >= duration * 0.8f) 1 else 0
+            }
+
+            TrainingGameType.DOODLE_JUMP -> {
+                val target = definition.behavior.targetScore.takeIf { it > 0 } ?: 600
+                when {
+                    score >= target -> 2
+                    score >= (target * 0.7f).toInt() -> 1
+                    else -> 0
+                }
+            }
+
+            TrainingGameType.SUBWAY_RUN -> {
+                min(2, (elapsedMillis / 30000L).toInt())
+            }
+        }
     }
 
     companion object {

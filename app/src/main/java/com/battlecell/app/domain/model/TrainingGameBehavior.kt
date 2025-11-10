@@ -8,5 +8,6 @@ data class TrainingGameBehavior(
     val flickerEnabled: Boolean = false,
     val visibleWindowMillis: Long = 300L,
     val invisibleWindowMillis: Long = 600L,
-    val bugRadiusDp: Float = 28f
+    val bugRadiusDp: Float = 28f,
+    val targetScore: Int = 0
 )

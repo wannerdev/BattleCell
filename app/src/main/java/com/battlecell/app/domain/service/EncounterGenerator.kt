@@ -21,12 +21,10 @@ class EncounterGenerator {
         val hash = hashBytes(fingerprint)
         val codename = codename(hash)
         val attributes = buildAttributes(hash)
-        val displayName = info.ssid?.takeIf { it.isNotBlank() } ?: codename
-
         val powerBoost = max(0, info.signalLevel + 100)
         return EncounterProfile(
             id = fingerprint,
-            displayName = displayName,
+            displayName = codename,
             isPlayer = false,
             attributes = attributes,
             powerScore = attributes.combatRating + powerBoost / 4,
@@ -40,12 +38,11 @@ class EncounterGenerator {
         val hash = hashBytes(fingerprint)
         val codename = codename(hash)
         val attributes = buildAttributes(hash.rotate())
-        val displayName = info.name?.takeIf { it.isNotBlank() } ?: codename
         val signalInfluence = max(0, info.rssi + 100)
 
         return EncounterProfile(
             id = fingerprint,
-            displayName = displayName,
+            displayName = codename,
             isPlayer = false,
             attributes = attributes,
             powerScore = attributes.combatRating + signalInfluence / 5,
@@ -59,6 +56,7 @@ class EncounterGenerator {
             secondary
         } else {
             primary.copy(
+                displayName = secondary.displayName,
                 attributes = primary.attributes.mergeWith(secondary.attributes),
                 powerScore = max(primary.powerScore, secondary.powerScore),
                 lastSeenEpoch = System.currentTimeMillis(),

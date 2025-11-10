@@ -12,6 +12,7 @@ data class TrainingGameDefinition(
     @SerialName("difficulty") val difficulty: Difficulty,
     @SerialName("base_reward") val baseReward: Int,
     @SerialName("icon") val icon: String,
+    @SerialName("game_type") val gameType: TrainingGameType = TrainingGameType.BUG_HUNT,
     @SerialName("behavior") val behavior: TrainingGameBehavior
 ) {
     val displayReward: Int
