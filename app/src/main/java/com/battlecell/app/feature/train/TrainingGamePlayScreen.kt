@@ -205,8 +205,8 @@ private fun TrainingGameContent(
                 .weight(1f)
                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp))
         ) {
-            val widthPx = with(density) { constraints.maxWidth.toPx() }
-            val heightPx = with(density) { constraints.maxHeight.toPx() }
+            val widthPx = with(density) { maxWidth.toPx() }
+            val heightPx = with(density) { maxHeight.toPx() }
             val arenaCenter = Offset(widthPx / 2f, heightPx / 2f)
 
             if (startPosition == Offset.Zero || gamePhase == GamePhase.Idle) {
