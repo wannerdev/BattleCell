@@ -30,7 +30,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build debug APK
-        run: bash ./gradlew clean assembleDebug
+        run: ./gradlew clean assembleDebug
 
       - name: Upload debug artifact
         uses: actions/upload-artifact@v4
