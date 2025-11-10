@@ -1,0 +1,195 @@
+package com.battlecell.app.feature.profile
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.battlecell.app.R
+import com.battlecell.app.domain.model.AttributeType
+
+@Composable
+fun ProfileRoute(
+    viewModel: ProfileViewModel
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.message) {
+        val message = uiState.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.consumeMessage()
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = stringResource(id = R.string.profile_title),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            uiState.character?.let { character ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = character.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(
+                                id = R.string.profile_level_and_xp,
+                                character.level,
+                                character.experience,
+                                character.skillPoints
+                            ),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = stringResource(
+                                id = R.string.profile_combat_rating,
+                                character.combatRating
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                AttributeAllocationCard(
+                    title = stringResource(id = R.string.profile_power_label),
+                    value = character.attributes.power,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.POWER) },
+                    enabled = character.skillPoints > 0
+                )
+                AttributeAllocationCard(
+                    title = stringResource(id = R.string.profile_agility_label),
+                    value = character.attributes.agility,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.AGILITY) },
+                    enabled = character.skillPoints > 0
+                )
+                AttributeAllocationCard(
+                    title = stringResource(id = R.string.profile_endurance_label),
+                    value = character.attributes.endurance,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.ENDURANCE) },
+                    enabled = character.skillPoints > 0
+                )
+                AttributeAllocationCard(
+                    title = stringResource(id = R.string.profile_focus_label),
+                    value = character.attributes.focus,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.FOCUS) },
+                    enabled = character.skillPoints > 0
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(id = R.string.profile_footer_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                )
+            } ?: run {
+                Text(
+                    text = stringResource(id = R.string.profile_empty_state),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttributeAllocationCard(
+    title: String,
+    value: Int,
+    enabled: Boolean,
+    onAllocate: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = stringResource(id = R.string.profile_attribute_value, value),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Button(
+                onClick = onAllocate,
+                enabled = enabled,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null
+                )
+                Text(
+                    text = stringResource(id = R.string.profile_allocate_button),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    }
+}
