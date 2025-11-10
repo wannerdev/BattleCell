@@ -146,7 +146,7 @@ fun BattleCellApp(
                 )
             ) { backStackEntry ->
                 val gameId = backStackEntry.arguments?.getString(BattleCellDestination.TrainingGame.ARG_GAME_ID) ?: ""
-                val viewModel = viewModel(
+                val viewModel = viewModel<TrainingGameViewModel>(
                     factory = TrainingGameViewModel.provideFactory(
                         playerRepository = appContainer.playerRepository,
                         getTrainingGamesUseCase = appContainer.getTrainingGamesUseCase,

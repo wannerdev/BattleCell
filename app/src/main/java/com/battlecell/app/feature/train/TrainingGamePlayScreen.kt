@@ -52,6 +52,7 @@ import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -138,7 +139,6 @@ private fun TrainingGameContent(
     val bugRadiusPx = with(density) { behavior.bugRadiusDp.dp.toPx() }
 
     var startPosition by remember { mutableStateOf(Offset.Zero) }
-    var arenaSize by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(gamePhase, runId) {
         if (gamePhase == GamePhase.Playing) {
@@ -191,6 +191,16 @@ private fun TrainingGameContent(
         }
     }
 
+    val widthPx = with(density) { maxWidth.toPx() }
+    val heightPx = with(density) { maxHeight.toPx() }
+    val arenaCenter = Offset(widthPx / 2f, heightPx / 2f)
+
+    if (startPosition == Offset.Zero || gamePhase == GamePhase.Idle) {
+        startPosition = randomStartPosition(widthPx, heightPx, bugRadiusPx, runId)
+    }
+
+    val currentBugPosition = lerp(startPosition, arenaCenter, progress.value)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -204,17 +214,13 @@ private fun TrainingGameContent(
                 .fillMaxWidth()
                 .weight(1f)
                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp))
-                .pointerInput(gamePhase, runId, bugVisible) {
+                .pointerInput(gamePhase, runId, bugVisible, arenaCenter, startPosition) {
                     detectBugTap(
                         enabled = gamePhase == GamePhase.Playing && bugVisible,
                         bugRadiusPx = bugRadiusPx,
                         bugPositionProvider = {
-                            val widthPx = with(density) { constraints.maxWidth.toPx() }
-                            val heightPx = with(density) { constraints.maxHeight.toPx() }
-                            arenaSize = Offset(widthPx, heightPx)
-                            val center = Offset(widthPx / 2f, heightPx / 2f)
                             val start = startPosition
-                            lerp(start, center, progress.value)
+                            lerp(start, arenaCenter, progress.value)
                         }
                     ) {
                         coroutineScope.launch {
@@ -227,22 +233,12 @@ private fun TrainingGameContent(
                     }
                 }
         ) {
-            val widthPx = with(density) { maxWidth.toPx() }
-            val heightPx = with(density) { maxHeight.toPx() }
-            if (arenaSize == Offset.Zero) {
-                arenaSize = Offset(widthPx, heightPx)
-            }
-            if (startPosition == Offset.Zero || gamePhase == GamePhase.Idle) {
-                startPosition = randomStartPosition(widthPx, heightPx, bugRadiusPx, runId)
-            }
-            val center = Offset(widthPx / 2f, heightPx / 2f)
-            val bugPosition = lerp(startPosition, center, progress.value)
             TrainingArena(
                 bugVisible = bugVisible && gamePhase == GamePhase.Playing,
-                bugPosition = bugPosition,
+                bugPosition = currentBugPosition,
+                startPosition = startPosition,
                 bugRadiusPx = bugRadiusPx,
-                center = center,
-                arenaSize = Offset(widthPx, heightPx),
+                center = arenaCenter,
                 progress = progress.value
             )
         }
@@ -256,12 +252,14 @@ private fun TrainingGameContent(
                 bugVisible = true
                 onResetResult()
                 gamePhase = GamePhase.Playing
+                startPosition = Offset.Zero
                 runId++
             },
             onRetry = {
                 bugVisible = true
                 onResetResult()
                 gamePhase = GamePhase.Idle
+                startPosition = Offset.Zero
                 runId++
             },
             onExit = onExit
@@ -295,7 +293,7 @@ private fun Header(
             Badge(text = definition.difficulty.name.lowercase().replaceFirstChar { it.titlecase() })
             Badge(text = "Reward ${definition.displayReward}")
             Badge(text = "Target ${definition.attributeReward.name.lowercase()}")
-            Badge(text = "Timer ${(elapsedMillis / 1000.0).formatSeconds()}")
+            Badge(text = "Timer ${(elapsedMillis / 1000f).formatSeconds()}")
         }
         state.character?.let {
             Text(
@@ -328,23 +326,23 @@ private fun Badge(text: String) {
 private fun TrainingArena(
     bugVisible: Boolean,
     bugPosition: Offset,
+    startPosition: Offset,
     bugRadiusPx: Float,
     center: Offset,
-    arenaSize: Offset,
     progress: Float
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
-        drawBackgroundGrid(arenaSize)
+        drawBackgroundGrid()
         drawTarget(center, bugRadiusPx)
         if (bugVisible) {
             drawBug(bugPosition, bugRadiusPx)
         } else {
-            drawGhostTrail(start = bugPosition, center = center, progress = progress, bugRadiusPx = bugRadiusPx)
+            drawGhostTrail(start = startPosition, center = center, progress = progress, bugRadiusPx = bugRadiusPx)
         }
     }
 }
 
-private fun DrawScope.drawBackgroundGrid(arenaSize: Offset) {
+private fun DrawScope.drawBackgroundGrid() {
     val step = size.minDimension / 8f
     val gridColor = Color.White.copy(alpha = 0.08f)
     for (x in 0..8) {
@@ -457,7 +455,7 @@ private fun ControlPanel(
 
             GamePhase.Playing -> {
                 Text(
-                    text = "Elapsed: ${(elapsedMillis / 1000.0).formatSeconds()}",
+                    text = "Elapsed: ${(elapsedMillis / 1000f).formatSeconds()}",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(

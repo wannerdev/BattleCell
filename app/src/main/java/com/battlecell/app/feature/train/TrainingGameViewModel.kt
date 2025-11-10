@@ -125,7 +125,8 @@ class TrainingGameViewModel(
     ): Int {
         return if (definition.behavior.flickerEnabled) {
             val remaining = max(0L, definition.behavior.totalDurationMillis.toLong() - elapsedMillis)
-            max(1, (remaining / 900L).roundToInt() + 1)
+            val bonus = (remaining / 900.0).roundToInt()
+            max(1, bonus + 1)
         } else {
             1
         }

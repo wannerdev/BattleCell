@@ -1,5 +1,8 @@
 package com.battlecell.app.domain.model
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class TrainingGameBehavior(
     val totalDurationMillis: Int,
     val flickerEnabled: Boolean = false,
