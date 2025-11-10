@@ -54,9 +54,9 @@ At this time the database doesn’t really make sense but it was designed to sto
 
 “Training” is supposed to be a menu for little training games, where each game trains a different attribute of the character.
 The second game is the flickering Bug in the future there should be more routes which get selected randomly or maybe a path finding algorithm with a map. 
-The search is supposed to show all other W-LAN android cellphones.
-There you could choose whose cellphone to attack. If there are none you can choose to fight against NPCs.
-If there are some they would get a randomized enemy based on the smartphone. 
-In the future the idea would be to comunicate with the smartphone asking them if they have the app and if yes get their characters attributes.
+The search is supposed to show all other W-LAN android cellphones, bluetooth is also an option.
+There you could choose whose cellphone to attack. If there are none you can choose to fight against NPCs. 
+If there are some they would get a randomized enemy based on the smartphone, or based on mac adresses of the devices around. 
+In the future the idea would be to comunicate with the smartphones in the same network asking them if they have the app and if yes get their characters attributes.
 
 
