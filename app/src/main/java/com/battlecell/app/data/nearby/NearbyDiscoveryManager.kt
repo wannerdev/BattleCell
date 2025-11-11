@@ -9,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.WifiManager
+import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
@@ -32,46 +34,30 @@ class NearbyDiscoveryManager(
         )
     }
 
-    @SuppressLint("MissingPermission")
+    @SuppressLint("MissingPermission", "DeprecatedWifiInfo")
     private suspend fun scanWifi(timeoutMillis: Long): List<WifiDeviceInfo> {
-        val manager = wifiManager ?: return emptyList()
-        return try {
+        val manager = wifiManager ?: return discoverArpClients()
+        val scanned = try {
             withTimeout(timeoutMillis) {
-                suspendCancellableCoroutine { continuation ->
+                suspendCancellableCoroutine<List<WifiDeviceInfo>> { continuation ->
                     val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
                     val receiver = object : BroadcastReceiver() {
                         override fun onReceive(context: Context?, intent: Intent?) {
-                            val results = manager.scanResults.orEmpty()
-                                .filter { !it.BSSID.isNullOrBlank() }
                             unregisterReceiverSafe(this)
                             if (continuation.isActive) {
-                                continuation.resume(results.map {
-                                    WifiDeviceInfo(
-                                        ssid = it.SSID.takeIf { name -> name?.isNotBlank() == true },
-                                        bssid = it.BSSID!!,
-                                        signalLevel = it.level
-                                    )
-                                })
+                                continuation.resume(manager.mapScanResults())
                             }
                         }
                     }
                     registerReceiverSafe(receiver, filter)
                     val started = try {
                         manager.startScan()
-                    } catch (security: SecurityException) {
+                    } catch (_: SecurityException) {
                         false
                     }
-                    if (!started) {
+                    if (!started && continuation.isActive) {
                         unregisterReceiverSafe(receiver)
-                        continuation.resume(manager.scanResults.orEmpty()
-                            .filter { !it.BSSID.isNullOrBlank() }
-                            .map {
-                            WifiDeviceInfo(
-                                ssid = it.SSID.takeIf { name -> name?.isNotBlank() == true },
-                                bssid = it.BSSID!!,
-                                signalLevel = it.level
-                            )
-                        })
+                        continuation.resume(manager.mapScanResults())
                     }
                     continuation.invokeOnCancellation {
                         unregisterReceiverSafe(receiver)
@@ -79,29 +65,32 @@ class NearbyDiscoveryManager(
                 }
             }
         } catch (_: TimeoutCancellationException) {
-            manager.scanResults.orEmpty()
-                .filter { !it.BSSID.isNullOrBlank() }
-                .map {
-                WifiDeviceInfo(
-                    ssid = it.SSID.takeIf { name -> name?.isNotBlank() == true },
-                    bssid = it.BSSID!!,
-                    signalLevel = it.level
-                )
-            }
+            manager.mapScanResults()
         } catch (_: SecurityException) {
             emptyList()
         }
+
+        val connection = manager.connectedAccessPoint()
+        val arpClients = discoverArpClients()
+
+        return buildList {
+            addAll(scanned)
+            connection?.let { add(it) }
+            addAll(arpClients)
+        }
+            .distinctBy { it.bssid.lowercase(Locale.US) }
+            .sortedByDescending { it.signalLevel }
     }
 
     @SuppressLint("MissingPermission")
     private suspend fun scanBluetooth(timeoutMillis: Long): List<BluetoothDeviceInfo> {
         val adapter = bluetoothAdapter ?: return emptyList()
-        if (!adapter.isEnabled) return emptyList()
+        if (!adapter.isEnabled) return bondedDevices(adapter)
 
-        return try {
+        val discovered = try {
             withTimeout(timeoutMillis) {
-                suspendCancellableCoroutine { continuation ->
-                    val discovered = mutableMapOf<String, BluetoothDeviceInfo>()
+                suspendCancellableCoroutine<List<BluetoothDeviceInfo>> { continuation ->
+                    val found = mutableMapOf<String, BluetoothDeviceInfo>()
                     val filter = IntentFilter().apply {
                         addAction(BluetoothDevice.ACTION_FOUND)
                         addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
@@ -116,20 +105,20 @@ class NearbyDiscoveryManager(
                                         BluetoothDevice.EXTRA_RSSI,
                                         Short.MIN_VALUE
                                     ).toInt()
-                                    if (device != null && device.address != null) {
-                                        discovered[device.address] =
-                                            BluetoothDeviceInfo(
-                                                name = device.name,
-                                                address = device.address,
-                                                rssi = rssi
-                                            )
+                                    val address = device?.address
+                                    if (!address.isNullOrBlank()) {
+                                        found[address] = BluetoothDeviceInfo(
+                                            name = device.name,
+                                            address = address,
+                                            rssi = rssi
+                                        )
                                     }
                                 }
 
                                 BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
                                     unregisterReceiverSafe(this)
                                     if (continuation.isActive) {
-                                        continuation.resume(discovered.values.toList())
+                                        continuation.resume(found.values.toList())
                                     }
                                 }
                             }
@@ -139,13 +128,14 @@ class NearbyDiscoveryManager(
 
                     val started = try {
                         adapter.startDiscovery()
-                    } catch (security: SecurityException) {
+                    } catch (_: SecurityException) {
                         false
                     }
 
-                    if (!started) {
+                    if (!started && continuation.isActive) {
                         unregisterReceiverSafe(receiver)
                         continuation.resume(emptyList())
+                        return@suspendCancellableCoroutine
                     }
 
                     continuation.invokeOnCancellation {
@@ -155,12 +145,91 @@ class NearbyDiscoveryManager(
                 }
             }
         } catch (_: TimeoutCancellationException) {
-            adapter.cancelDiscovery()
             emptyList()
         } catch (_: SecurityException) {
             emptyList()
+        } finally {
+            runCatching { adapter.cancelDiscovery() }
         }
+
+        val bonded = bondedDevices(adapter)
+        return (discovered + bonded)
+            .distinctBy { it.address.lowercase(Locale.US) }
+            .sortedByDescending { it.rssi }
     }
+
+    @SuppressLint("MissingPermission", "DeprecatedWifiInfo")
+    private fun WifiManager.connectedAccessPoint(): WifiDeviceInfo? {
+        val info = runCatching { connectionInfo }.getOrNull() ?: return null
+        val bssid = info.bssid?.takeIf {
+            it.isNotBlank() && it != "00:00:00:00:00:00"
+        } ?: return null
+        val ssid = info.ssid?.takeIf {
+            it.isNotBlank() && it != "<unknown ssid>"
+        }?.trim('"')
+        val rssi = info.rssi.takeUnless { it == Int.MIN_VALUE || it <= -200 } ?: -50
+        return WifiDeviceInfo(
+            ssid = ssid,
+            bssid = bssid.lowercase(Locale.US),
+            signalLevel = rssi
+        )
+    }
+
+    private fun WifiManager.mapScanResults(): List<WifiDeviceInfo> =
+        scanResults.orEmpty()
+            .mapNotNull { result ->
+                val bssid = result.BSSID?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val ssid = result.SSID?.takeIf {
+                    it.isNotBlank() && it != "<unknown ssid>"
+                }
+                WifiDeviceInfo(
+                    ssid = ssid,
+                    bssid = bssid.lowercase(Locale.US),
+                    signalLevel = result.level
+                )
+            }
+
+    private fun discoverArpClients(): List<WifiDeviceInfo> =
+        runCatching {
+            val arpFile = File("/proc/net/arp")
+            if (!arpFile.exists() || !arpFile.canRead()) {
+                emptyList()
+            } else {
+                arpFile.useLines { sequence ->
+                    sequence
+                        .drop(1)
+                        .mapNotNull { line ->
+                            val parts = line.split(Regex("\\s+"))
+                            if (parts.size < 4) return@mapNotNull null
+                            val flags = parts[2]
+                            val mac = parts[3]
+                            if (flags != "0x2") return@mapNotNull null
+                            if (mac.equals("00:00:00:00:00:00", ignoreCase = true)) return@mapNotNull null
+                            WifiDeviceInfo(
+                                ssid = null,
+                                bssid = mac.lowercase(Locale.US),
+                                signalLevel = -45
+                            )
+                        }
+                        .distinctBy { it.bssid }
+                        .toList()
+                }
+            }
+        }.getOrElse { emptyList() }
+
+    @SuppressLint("MissingPermission")
+    private fun bondedDevices(adapter: BluetoothAdapter): List<BluetoothDeviceInfo> =
+        runCatching {
+            adapter.bondedDevices.orEmpty()
+                .mapNotNull { device ->
+                    val address = device.address?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    BluetoothDeviceInfo(
+                        name = device.name,
+                        address = address,
+                        rssi = 0
+                    )
+                }
+        }.getOrElse { emptyList() }
 
     private fun registerReceiverSafe(receiver: BroadcastReceiver, filter: IntentFilter) {
         try {
