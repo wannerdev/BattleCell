@@ -15,6 +15,7 @@ data class PlayerCharacter(
     @SerialName("victories") val victories: Int = 0,
     @SerialName("defeats") val defeats: Int = 0,
     @SerialName("skill_points") val skillPoints: Int = 0,
+    @SerialName("skill_ledger") val skillLedger: SkillPointLedger = SkillPointLedger(),
     @SerialName("created_at") val createdAtEpoch: Long = System.currentTimeMillis(),
     @SerialName("updated_at") val updatedAtEpoch: Long = System.currentTimeMillis()
 ) {
@@ -48,10 +49,30 @@ data class PlayerCharacter(
 
     fun spendSkillPoints(type: AttributeType, amount: Int): PlayerCharacter {
         val actualAmount = max(0, amount)
-        if (actualAmount <= 0 || actualAmount > skillPoints) return this
+        if (actualAmount <= 0) return this
+        var remaining = actualAmount
+        var updatedLedger = skillLedger
+        var updatedGeneral = skillPoints
+
+        val ledgerAvailable = updatedLedger.get(type)
+        if (ledgerAvailable > 0) {
+            val takenFromLedger = minOf(ledgerAvailable, remaining)
+            updatedLedger = updatedLedger.spend(type, takenFromLedger)
+            remaining -= takenFromLedger
+        }
+
+        if (remaining > 0) {
+            if (remaining > updatedGeneral) return this
+            updatedGeneral -= remaining
+            remaining = 0
+        }
+
+        if (remaining > 0) return this
+
         return copy(
             attributes = attributes.increase(type, actualAmount),
-            skillPoints = skillPoints - actualAmount,
+            skillPoints = updatedGeneral,
+            skillLedger = updatedLedger,
             updatedAtEpoch = System.currentTimeMillis()
         )
     }
@@ -76,4 +97,14 @@ data class PlayerCharacter(
             attributes = block(attributes),
             updatedAtEpoch = System.currentTimeMillis()
         )
+
+    fun addVariantSkillPoints(type: AttributeType, amount: Int): PlayerCharacter {
+        if (amount <= 0) return this
+        return copy(
+            skillLedger = skillLedger.add(type, amount),
+            updatedAtEpoch = System.currentTimeMillis()
+        )
+    }
+
+    fun variantSkillPoints(type: AttributeType): Int = skillLedger.get(type)
 }

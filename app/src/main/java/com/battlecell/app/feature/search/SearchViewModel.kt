@@ -51,12 +51,12 @@ class SearchViewModel(
                 val encounters = synthesizeEncounters(snapshot)
                 encounterRepository.replaceAll(encounters)
                 toastMessage.value = when {
-                    encounters.isEmpty() -> "No nearby signals detected."
-                    encounters.size == 1 -> "1 opponent found."
-                    else -> "${encounters.size} opponents found."
+                    encounters.isEmpty() -> "No rival banners answered the horn."
+                    encounters.size == 1 -> "One challenger stirs nearby."
+                    else -> "${encounters.size} challengers muster in the vicinity."
                 }
             } catch (ex: Exception) {
-                toastMessage.value = "Scan failed: ${ex.message ?: "unknown error"}"
+                toastMessage.value = "The horn faltered: ${ex.message ?: "unknown cause"}"
             } finally {
                 isScanning.value = false
             }

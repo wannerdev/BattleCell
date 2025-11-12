@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,13 +22,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -62,12 +66,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.battlecell.app.domain.model.Difficulty
 import com.battlecell.app.domain.model.TrainingGameDefinition
 import com.battlecell.app.domain.model.TrainingGameType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -117,28 +123,32 @@ fun TrainingGameRoute(
                             state = uiState,
                             onSubmitResult = submitResult,
                             onExit = onExit,
-                            onResetResult = viewModel::consumeResult
+                            onResetResult = viewModel::consumeResult,
+                            onDifficultySelected = viewModel::setDifficulty
                         )
 
                         TrainingGameType.FLAPPY_FLIGHT -> FlappyFlightGame(
                             state = uiState,
                             onSubmitResult = submitResult,
                             onExit = onExit,
-                            onResetResult = viewModel::consumeResult
+                            onResetResult = viewModel::consumeResult,
+                            onDifficultySelected = viewModel::setDifficulty
                         )
 
                         TrainingGameType.DOODLE_JUMP -> DoodleJumpGame(
                             state = uiState,
                             onSubmitResult = submitResult,
                             onExit = onExit,
-                            onResetResult = viewModel::consumeResult
+                            onResetResult = viewModel::consumeResult,
+                            onDifficultySelected = viewModel::setDifficulty
                         )
 
                         TrainingGameType.SUBWAY_RUN -> SubwayRunGame(
                             state = uiState,
                             onSubmitResult = submitResult,
                             onExit = onExit,
-                            onResetResult = viewModel::consumeResult
+                            onResetResult = viewModel::consumeResult,
+                            onDifficultySelected = viewModel::setDifficulty
                         )
                     }
                 }
@@ -154,11 +164,14 @@ private fun BugHuntGame(
     state: TrainingGameUiState,
     onSubmitResult: (elapsedMillis: Long, didWin: Boolean, score: Int) -> Unit,
     onExit: () -> Unit,
-    onResetResult: () -> Unit
+    onResetResult: () -> Unit,
+    onDifficultySelected: (Difficulty) -> Unit
 ) {
     val definition = state.definition ?: return
     val behavior = definition.behavior
     val density = LocalDensity.current
+    val difficulty = state.selectedDifficulty
+    val missionDuration = (behavior.totalDurationMillis * difficulty.bugHuntDurationFactor()).roundToInt().coerceAtLeast(2_000)
 
     var gamePhase by remember(definition.id) { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id) { mutableIntStateOf(0) }
@@ -169,7 +182,7 @@ private fun BugHuntGame(
 
     val coroutineScope = rememberCoroutineScope()
 
-    val bugRadiusPx = with(density) { behavior.bugRadiusDp.dp.toPx() }
+    val bugRadiusPx = with(density) { behavior.bugRadiusDp.dp.toPx() * difficulty.bugHuntRadiusScale() }
 
     var startPosition by remember { mutableStateOf(Offset.Zero) }
 
@@ -181,7 +194,7 @@ private fun BugHuntGame(
                 progress.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = behavior.totalDurationMillis,
+                        durationMillis = missionDuration,
                         easing = LinearEasing
                     )
                 )
@@ -270,7 +283,7 @@ private fun BugHuntGame(
                             val elapsed = SystemClock.elapsedRealtime() - startTimestamp
                             elapsedMillis = elapsed
                             val remaining =
-                                (definition.behavior.totalDurationMillis - elapsed.toInt()).coerceAtLeast(0)
+                                (missionDuration - elapsed.toInt()).coerceAtLeast(0)
                             onSubmitResult(elapsed, true, remaining)
                             gamePhase = GamePhase.Victory
                         }
@@ -291,9 +304,11 @@ private fun BugHuntGame(
             elapsedMillis = elapsedMillis,
             score = null,
             scoreLabel = null,
-            playingHint = "Anticipate its path and strike before it reaches the core.",
-            defeatMessage = "The nanobot breached the core defenses.",
+            playingHint = "Anticipate its path and strike before it meets the core ward.",
+            defeatMessage = "The rogue spark slipped past the ward.",
             lastResult = state.lastResult,
+            selectedDifficulty = state.selectedDifficulty,
+            onDifficultySelected = onDifficultySelected,
             onStart = {
                 bugVisible = true
                 onResetResult()
@@ -337,11 +352,13 @@ private fun FlappyFlightGame(
     state: TrainingGameUiState,
     onSubmitResult: (elapsedMillis: Long, didWin: Boolean, score: Int) -> Unit,
     onExit: () -> Unit,
-    onResetResult: () -> Unit
+    onResetResult: () -> Unit,
+    onDifficultySelected: (Difficulty) -> Unit
 ) {
     val definition = state.definition ?: return
     val behavior = definition.behavior
     val density = LocalDensity.current
+    val difficulty = state.selectedDifficulty
 
     var gamePhase by remember(definition.id + "_flappy") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_flappy") { mutableIntStateOf(0) }
@@ -369,11 +386,13 @@ private fun FlappyFlightGame(
             val widthPx = with(density) { maxWidth.toPx() }
             val heightPx = with(density) { maxHeight.toPx() }
             val birdRadiusPx = with(density) {
-                (behavior.bugRadiusDp.takeIf { it > 0f } ?: 24f).dp.toPx()
+                (behavior.bugRadiusDp.takeIf { it > 0f } ?: 24f).dp.toPx() * difficulty.flappyRadiusScale()
             }
             val birdX = widthPx * 0.28f
             val pipeWidth = with(density) { 52.dp.toPx() }
-            val pipeSpacing = widthPx * 0.45f
+            val pipeSpacing = widthPx * (0.45f * difficulty.flappySpacingFactor())
+            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
+            val gapFactor = difficulty.flappyGapScale()
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
@@ -385,7 +404,8 @@ private fun FlappyFlightGame(
                         startX = widthPx * 1.2f,
                         pipeWidth = pipeWidth,
                         heightPx = heightPx,
-                        seed = seed
+                        seed = seed,
+                        gapFactor = gapFactor
                     )
                 }
             }
@@ -402,12 +422,12 @@ private fun FlappyFlightGame(
                     startX = widthPx * 1.2f,
                     pipeWidth = pipeWidth,
                     heightPx = heightPx,
-                    seed = runId * 1337 + 19
+                    seed = runId * 1337 + 19,
+                    gapFactor = gapFactor
                 )
-                val duration = behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000
-                val gravity = 1200f
-                val flapImpulse = -520f
-                val pipeSpeed = widthPx / 2.6f
+                val gravity = 1200f * difficulty.flappySpeedScale()
+                val flapImpulse = -520f * difficulty.flappySpeedScale()
+                val pipeSpeed = (widthPx / 2.6f) * difficulty.flappySpeedScale()
                 var localScore = 0
                 var lastTime = start
 
@@ -426,7 +446,7 @@ private fun FlappyFlightGame(
                     lastTime = now
                     elapsedMillis = now - start
 
-                    if (elapsedMillis >= duration) {
+                    if (elapsedMillis >= missionDuration) {
                         finishRound(true)
                         break
                     }
@@ -468,7 +488,8 @@ private fun FlappyFlightGame(
                             startX = widthPx + pipeWidth,
                             pipeWidth = pipeWidth,
                             heightPx = heightPx,
-                            seed = seed
+                            seed = seed,
+                            gapFactor = gapFactor
                         )
                     }
 
@@ -557,9 +578,11 @@ private fun FlappyFlightGame(
             elapsedMillis = elapsedMillis,
             score = score,
             scoreLabel = "Gates cleared",
-            playingHint = "Tap anywhere to thrust upward. Glide through every gap.",
-            defeatMessage = "The drone collided with a containment pylon.",
+            playingHint = "Tap to give your falcon lift. Thread the warded pylons.",
+            defeatMessage = "The scout clipped a charged pylon.",
             lastResult = state.lastResult,
+            selectedDifficulty = state.selectedDifficulty,
+            onDifficultySelected = onDifficultySelected,
             onStart = {
                 onResetResult()
                 score = 0
@@ -584,11 +607,13 @@ private fun SubwayRunGame(
     state: TrainingGameUiState,
     onSubmitResult: (elapsedMillis: Long, didWin: Boolean, score: Int) -> Unit,
     onExit: () -> Unit,
-    onResetResult: () -> Unit
+    onResetResult: () -> Unit,
+    onDifficultySelected: (Difficulty) -> Unit
 ) {
     val definition = state.definition ?: return
     val behavior = definition.behavior
     val density = LocalDensity.current
+    val difficulty = state.selectedDifficulty
 
     var gamePhase by remember(definition.id + "_runner") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_runner") { mutableIntStateOf(0) }
@@ -617,10 +642,11 @@ private fun SubwayRunGame(
             val laneCount = 3
             val laneWidth = widthPx / laneCount
             val playerY = heightPx * 0.78f
-            val avatarRadius = with(density) { 24.dp.toPx() }
+            val avatarRadius = with(density) { 24.dp.toPx() * difficulty.runnerAvatarScale() }
             val obstacleHeight = with(density) { 46.dp.toPx() }
             val obstacleWidth = laneWidth * 0.6f
-            val duration = behavior.totalDurationMillis.takeIf { it > 0 } ?: 60_000
+            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 60_000) * difficulty.runnerDurationFactor()).roundToInt()
+            val spawnThreshold = heightPx * difficulty.runnerSpawnFactor()
 
             LaunchedEffect(gamePhase, runId) {
                 if (gamePhase != GamePhase.Playing) {
@@ -657,12 +683,12 @@ private fun SubwayRunGame(
                     lastTime = now
                     elapsedMillis = now - start
 
-                    if (elapsedMillis >= duration) {
+                    if (elapsedMillis >= missionDuration) {
                         finishRound(true)
                         break
                     }
 
-                    val speed = (heightPx / 2.6f) + (elapsedMillis / 4000f)
+                    val speed = ((heightPx / 2.6f) + (elapsedMillis / 4000f)) * difficulty.runnerSpeedScale()
 
                     for (index in obstacles.indices) {
                         val obstacle = obstacles[index]
@@ -688,7 +714,7 @@ private fun SubwayRunGame(
 
                     obstacles.removeAll { it.y > heightPx + obstacleHeight }
 
-                    if (obstacles.isEmpty() || obstacles.last().y > heightPx / 3f) {
+                    if (obstacles.isEmpty() || obstacles.last().y > spawnThreshold) {
                         val seed = runId * 373 + localScore * 19 + obstacles.size * 11
                         obstacles += generateRunnerObstacle(
                             laneCount = laneCount,
@@ -785,9 +811,11 @@ private fun SubwayRunGame(
             elapsedMillis = elapsedMillis,
             score = score,
             scoreLabel = "Obstacles cleared",
-            playingHint = "Tap between lanes to dodge incoming security drones.",
-            defeatMessage = "You collided with a security drone.",
+            playingHint = "Tap the lanes to weave past the sentry constructs.",
+            defeatMessage = "A sentry construct cut you down.",
             lastResult = state.lastResult,
+            selectedDifficulty = state.selectedDifficulty,
+            onDifficultySelected = onDifficultySelected,
             onStart = {
                 onResetResult()
                 score = 0
@@ -812,11 +840,13 @@ private fun DoodleJumpGame(
     state: TrainingGameUiState,
     onSubmitResult: (elapsedMillis: Long, didWin: Boolean, score: Int) -> Unit,
     onExit: () -> Unit,
-    onResetResult: () -> Unit
+    onResetResult: () -> Unit,
+    onDifficultySelected: (Difficulty) -> Unit
 ) {
     val definition = state.definition ?: return
     val behavior = definition.behavior
     val density = LocalDensity.current
+    val difficulty = state.selectedDifficulty
 
     var gamePhase by remember(definition.id + "_jump") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_jump") { mutableIntStateOf(0) }
@@ -849,9 +879,14 @@ private fun DoodleJumpGame(
             val avatarRadius = with(density) {
                 (behavior.bugRadiusDp.takeIf { it > 0f } ?: 20f).dp.toPx()
             }
-            val platformHeight = with(density) { 16.dp.toPx() }
-            val platformCount = 10
-            val requiredScore = behavior.targetScore.takeIf { it > 0 } ?: 650
+            val platformHeight = with(density) { 14.dp.toPx() }
+            val platformCount = difficulty.jumpPlatformCount()
+            val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 650
+            val requiredScore = kotlin.math.max(
+                300,
+                (baseTarget * difficulty.jumpScoreMultiplier()).roundToInt()
+            )
+            val platformWidthScale = difficulty.jumpPlatformWidthScale()
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
@@ -863,7 +898,8 @@ private fun DoodleJumpGame(
                         platforms += generateJumpPlatform(
                             widthPx = widthPx,
                             y = y,
-                            seed = random.nextInt()
+                            seed = random.nextInt(),
+                            widthScale = platformWidthScale
                         )
                     }
                     playerX = widthPx / 2f
@@ -885,10 +921,10 @@ private fun DoodleJumpGame(
                 playerY = heightPx * 0.35f
                 playerVelocityX = 0f
                 playerVelocityY = 0f
-                val gravity = 1800f
-                val jumpImpulse = -1250f
-                val horizontalImpulse = widthPx / 1.4f
-                val friction = 0.9f
+                val gravity = 2100f * difficulty.jumpGravityScale()
+                val jumpImpulse = -1350f * difficulty.jumpImpulseScale()
+                val horizontalImpulse = (widthPx / 1.8f) * difficulty.jumpHorizontalScale()
+                val friction = 0.85f
                 val spacing = heightPx / (platformCount - 1)
                 var lastTime = start
 
@@ -952,7 +988,8 @@ private fun DoodleJumpGame(
                             val newPlatform = generateJumpPlatform(
                                 widthPx = widthPx,
                                 y = platform.y - heightPx - spacing,
-                                seed = seed
+                                seed = seed,
+                                widthScale = platformWidthScale
                             )
                             platforms[index] = newPlatform
                         }
@@ -1042,9 +1079,11 @@ private fun DoodleJumpGame(
             elapsedMillis = elapsedMillis,
             score = score,
             scoreLabel = "Height reached",
-            playingHint = "Tap left or right to nudge your jump. Chain bounces to keep climbing.",
-            defeatMessage = "You slipped below the reactor shaft.",
+            playingHint = "Tap left or right to guide each leap. Keep climbing the shifting pillars.",
+            defeatMessage = "You tumbled into the depths.",
             lastResult = state.lastResult,
+            selectedDifficulty = state.selectedDifficulty,
+            onDifficultySelected = onDifficultySelected,
             onStart = {
                 onResetResult()
                 score = 0
@@ -1075,6 +1114,9 @@ private fun Header(
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        val stance = state.selectedDifficulty
+        val rewardValue = (definition.baseReward * stance.multiplier).roundToInt()
+        val attributeLabel = definition.attributeReward.name.lowercase().replaceFirstChar { it.titlecase() }
         Text(
             text = definition.title,
             style = MaterialTheme.typography.headlineSmall,
@@ -1089,9 +1131,9 @@ private fun Header(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Badge(text = definition.difficulty.name.lowercase().replaceFirstChar { it.titlecase() })
-            Badge(text = "Reward ${definition.displayReward}")
-            Badge(text = "Target ${definition.attributeReward.name.lowercase()}")
+            Badge(text = stance.displayName)
+            Badge(text = "Reward $rewardValue")
+            Badge(text = "Target $attributeLabel")
             Badge(text = "Timer ${(elapsedMillis / 1000f).formatSeconds()}")
         }
         state.character?.let {
@@ -1207,6 +1249,8 @@ private fun ControlPanel(
     playingHint: String,
     defeatMessage: String,
     lastResult: TrainingGameResult?,
+    selectedDifficulty: Difficulty,
+    onDifficultySelected: (Difficulty) -> Unit,
     onStart: () -> Unit,
     onRetry: () -> Unit,
     onExit: () -> Unit
@@ -1214,11 +1258,44 @@ private fun ControlPanel(
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        val attributeLabel = definition.attributeReward.name.lowercase().replaceFirstChar { it.titlecase() }
+        Text(
+            text = "Difficulty: ${selectedDifficulty.displayName} • Reward ${selectedDifficulty.skillPointReward} $attributeLabel sigils",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         when (phase) {
             GamePhase.Idle -> {
                 Text(
-                    text = "Mission: ${definition.title}. Launch when you're ready.",
+                    text = "Trial: ${definition.title}. Rally when you're ready.",
                     style = MaterialTheme.typography.bodyLarge
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Difficulty.values().forEach { difficulty ->
+                        FilterChip(
+                            selected = difficulty == selectedDifficulty,
+                            onClick = { onDifficultySelected(difficulty) },
+                            label = { Text(text = difficulty.displayName) },
+                            leadingIcon = if (difficulty == selectedDifficulty) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
+                Text(
+                    text = "Victory yields ${selectedDifficulty.skillPointReward} $attributeLabel sigils.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                 )
                 Button(
                     onClick = onStart,
@@ -1227,7 +1304,7 @@ private fun ControlPanel(
                 ) {
                     Icon(imageVector = Icons.Default.Flag, contentDescription = null)
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(text = "Start")
+                    Text(text = "Begin trial")
                 }
             }
 
@@ -1298,7 +1375,10 @@ private fun VictoryPanel(
                 style = MaterialTheme.typography.titleMedium
             )
             val subtitle = when (lastResult) {
-                is TrainingGameResult.Victory -> "Attribute +${lastResult.attributeGain} ${lastResult.attributeType.name.lowercase()} - XP +${lastResult.experienceGain}"
+                is TrainingGameResult.Victory -> {
+                    val attributeLabel = lastResult.attributeType.name.lowercase().replaceFirstChar { it.titlecase() }
+                    "Attribute +${lastResult.attributeGain} $attributeLabel • XP +${lastResult.experienceGain} • ${lastResult.variantSkillPointGain} $attributeLabel sigils (${lastResult.difficulty.displayName})"
+                }
                 else -> "Attribute boost and experience gained."
             }
             Text(
@@ -1370,11 +1450,13 @@ private fun DefeatPanel(
 private fun generateJumpPlatform(
     widthPx: Float,
     y: Float,
-    seed: Int
+    seed: Int,
+    widthScale: Float = 1f
 ): JumpPlatform {
     val random = Random(seed)
-    val minWidth = widthPx * 0.18f
-    val maxWidth = widthPx * 0.32f
+    val clampedScale = widthScale.coerceIn(0.5f, 1.4f)
+    val minWidth = widthPx * 0.12f * clampedScale
+    val maxWidth = widthPx * 0.24f * clampedScale
     val platformWidth = random.nextDouble(minWidth.toDouble(), maxWidth.toDouble()).toFloat()
     val x = random.nextDouble(0.0, (widthPx - platformWidth).toDouble()).toFloat()
     return JumpPlatform(
@@ -1388,11 +1470,13 @@ private fun generateFlappyPipe(
     startX: Float,
     pipeWidth: Float,
     heightPx: Float,
-    seed: Int
+    seed: Int,
+    gapFactor: Float = 1f
 ): FlappyPipe {
     val random = Random(seed)
-    val minGap = heightPx * 0.28f
-    val maxGap = heightPx * 0.42f
+    val clamped = gapFactor.coerceIn(0.6f, 1.4f)
+    val minGap = heightPx * 0.28f * clamped
+    val maxGap = heightPx * 0.42f * clamped
     val gapHeight = random.nextDouble(minGap.toDouble(), maxGap.toDouble()).toFloat()
     val topMargin = heightPx * 0.12f + pipeWidth
     val bottomMargin = heightPx * 0.12f
@@ -1419,6 +1503,125 @@ private fun generateRunnerObstacle(
         y = startY,
         passed = false
     )
+}
+
+private fun Difficulty.bugHuntDurationFactor(): Double = when (this) {
+    Difficulty.EASY -> 1.25
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 0.82
+    Difficulty.LEGENDARY -> 0.68
+}
+
+private fun Difficulty.bugHuntRadiusScale(): Float = when (this) {
+    Difficulty.EASY -> 1.15f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.88f
+    Difficulty.LEGENDARY -> 0.78f
+}
+
+private fun Difficulty.flappySpeedScale(): Float = when (this) {
+    Difficulty.EASY -> 0.9f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 1.18f
+    Difficulty.LEGENDARY -> 1.32f
+}
+
+private fun Difficulty.flappyGapScale(): Float = when (this) {
+    Difficulty.EASY -> 1.15f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.85f
+    Difficulty.LEGENDARY -> 0.7f
+}
+
+private fun Difficulty.flappySpacingFactor(): Float = when (this) {
+    Difficulty.EASY -> 1.2f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.9f
+    Difficulty.LEGENDARY -> 0.8f
+}
+
+private fun Difficulty.flappyDurationFactor(): Double = when (this) {
+    Difficulty.EASY -> 0.9
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 1.12
+    Difficulty.LEGENDARY -> 1.25
+}
+
+private fun Difficulty.flappyRadiusScale(): Float = when (this) {
+    Difficulty.EASY -> 1.05f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.92f
+    Difficulty.LEGENDARY -> 0.85f
+}
+
+private fun Difficulty.runnerSpeedScale(): Float = when (this) {
+    Difficulty.EASY -> 0.95f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 1.18f
+    Difficulty.LEGENDARY -> 1.32f
+}
+
+private fun Difficulty.runnerDurationFactor(): Double = when (this) {
+    Difficulty.EASY -> 0.85
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 1.12
+    Difficulty.LEGENDARY -> 1.25
+}
+
+private fun Difficulty.runnerSpawnFactor(): Float = when (this) {
+    Difficulty.EASY -> 0.42f
+    Difficulty.NORMAL -> 0.35f
+    Difficulty.HARD -> 0.28f
+    Difficulty.LEGENDARY -> 0.22f
+}
+
+private fun Difficulty.runnerAvatarScale(): Float = when (this) {
+    Difficulty.EASY -> 1.05f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.95f
+    Difficulty.LEGENDARY -> 0.9f
+}
+
+private fun Difficulty.jumpPlatformCount(): Int = when (this) {
+    Difficulty.EASY -> 9
+    Difficulty.NORMAL -> 8
+    Difficulty.HARD -> 7
+    Difficulty.LEGENDARY -> 6
+}
+
+private fun Difficulty.jumpScoreMultiplier(): Double = when (this) {
+    Difficulty.EASY -> 0.85
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 1.18
+    Difficulty.LEGENDARY -> 1.35
+}
+
+private fun Difficulty.jumpPlatformWidthScale(): Float = when (this) {
+    Difficulty.EASY -> 1.2f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.85f
+    Difficulty.LEGENDARY -> 0.72f
+}
+
+private fun Difficulty.jumpGravityScale(): Float = when (this) {
+    Difficulty.EASY -> 0.9f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 1.12f
+    Difficulty.LEGENDARY -> 1.28f
+}
+
+private fun Difficulty.jumpImpulseScale(): Float = when (this) {
+    Difficulty.EASY -> 1.1f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.93f
+    Difficulty.LEGENDARY -> 0.85f
+}
+
+private fun Difficulty.jumpHorizontalScale(): Float = when (this) {
+    Difficulty.EASY -> 1.05f
+    Difficulty.NORMAL -> 1.0f
+    Difficulty.HARD -> 0.9f
+    Difficulty.LEGENDARY -> 0.82f
 }
 
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectBugTap(

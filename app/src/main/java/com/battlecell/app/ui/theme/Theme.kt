@@ -16,31 +16,37 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryPurple,
-    onPrimary = Color.White,
-    secondary = SecondaryTeal,
-    background = BackgroundDark,
-    onBackground = Color.White,
-    surface = SurfaceDark,
-    onSurface = Color.White,
-    error = AccentRed
+    primary = AccentGold,
+    onPrimary = Color(0xFF2B1A0D),
+    secondary = DarkSage,
+    onSecondary = Color(0xFFECE3CF),
+    background = DarkMidnight,
+    onBackground = Color(0xFFF1E4D2),
+    surface = DarkSurface,
+    onSurface = Color(0xFFF1E4D2),
+    error = AccentCrimson,
+    outline = Color(0xFF67543B)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = PrimaryPurple,
+    primary = PrimaryBronze,
     onPrimary = Color.White,
-    secondary = SecondaryTeal,
-    background = Color(0xFFF3EDF7),
-    onBackground = Color(0xFF1C1B1F),
-    surface = Color.White,
-    onSurface = Color(0xFF1C1B1F),
-    error = AccentRed
+    secondary = SecondarySage,
+    onSecondary = Color(0xFF1F271C),
+    background = LightParchment,
+    onBackground = Color(0xFF2D2213),
+    surface = LightSurface,
+    onSurface = Color(0xFF2D2213),
+    surfaceVariant = LightOutline,
+    onSurfaceVariant = Color(0xFF4A3B26),
+    error = AccentCrimson,
+    outline = Color(0xFFB49E82)
 )
 
 @Composable
 fun BattleCellTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val view = LocalView.current

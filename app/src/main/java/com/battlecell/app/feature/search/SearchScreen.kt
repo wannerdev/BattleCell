@@ -83,21 +83,21 @@ fun SearchRoute(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                 )
-                Button(
-                    onClick = { viewModel.manualScan() },
-                    enabled = !uiState.isScanning,
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.WifiTethering,
-                        contentDescription = null
-                    )
-                    Text(
-                        text = stringResource(id = R.string.search_scan_button),
-                        modifier = Modifier.padding(start = 12.dp)
-                    )
-                }
+                  Button(
+                      onClick = { viewModel.manualScan() },
+                      enabled = !uiState.isScanning,
+                      shape = RoundedCornerShape(16.dp),
+                      contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                  ) {
+                      Icon(
+                          imageVector = Icons.Default.BluetoothSearching,
+                          contentDescription = null
+                      )
+                      Text(
+                          text = stringResource(id = R.string.search_scan_button),
+                          modifier = Modifier.padding(start = 12.dp)
+                      )
+                  }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp),
@@ -172,11 +172,10 @@ private fun EncounterCard(
 
 @Composable
 private fun RowHeader(profile: EncounterProfile) {
-    val icon = when (profile.source) {
-        EncounterSource.WIFI, EncounterSource.PLAYER_CACHE -> Icons.Default.WifiTethering
-        EncounterSource.BLUETOOTH -> Icons.Default.BluetoothSearching
-        EncounterSource.NPC -> Icons.Default.WifiTethering
-    }
+      val icon = when (profile.source) {
+          EncounterSource.WIFI, EncounterSource.BLUETOOTH, EncounterSource.PLAYER_CACHE -> Icons.Default.BluetoothSearching
+          EncounterSource.NPC -> Icons.Default.BluetoothSearching
+      }
 
     Column(
         modifier = Modifier.fillMaxWidth(),

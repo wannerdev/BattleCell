@@ -39,13 +39,14 @@ class ProfileViewModel(
                 toastMessages.value = "Create your hero first."
                 return@launch
             }
-            if (player.skillPoints <= 0) {
-                toastMessages.value = "No skill points available."
+            val available = player.skillPoints + player.variantSkillPoints(type)
+            if (available <= 0) {
+                toastMessages.value = "No sigils remain for ${type.name.lowercase()}."
                 return@launch
             }
             val updated = player.spendSkillPoints(type, 1)
             playerRepository.upsert(updated)
-            toastMessages.value = "Allocated 1 point to ${type.name.lowercase().replaceFirstChar { it.titlecase() }}"
+            toastMessages.value = "Allocated 1 sigil to ${type.name.lowercase().replaceFirstChar { it.titlecase() }}"
         }
     }
 
