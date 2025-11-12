@@ -32,7 +32,7 @@ class ProfileViewModel(
         initialValue = ProfileUiState(isLoading = true)
     )
 
-    fun allocatePoint(type: AttributeType) {
+    fun allocatePoints(type: AttributeType, amount: Int) {
         viewModelScope.launch {
             val player = playerRepository.playerStream.first()
             if (player == null) {
@@ -44,10 +44,23 @@ class ProfileViewModel(
                 toastMessages.value = "No sigils remain for ${type.name.lowercase()}."
                 return@launch
             }
-            val updated = player.spendSkillPoints(type, 1)
+            val desiredAmount = amount.coerceAtLeast(1)
+            val spendAmount = desiredAmount.coerceAtMost(available)
+            if (spendAmount <= 0) {
+                toastMessages.value = "No sigils remain for ${type.name.lowercase()}."
+                return@launch
+            }
+            val updated = player.spendSkillPoints(type, spendAmount)
             playerRepository.upsert(updated)
-            toastMessages.value = "Allocated 1 sigil to ${type.name.lowercase().replaceFirstChar { it.titlecase() }}"
+            val label = type.name.lowercase().replaceFirstChar { it.titlecase() }
+            val noun = if (spendAmount == 1) "sigil" else "sigils"
+            val suffix = if (spendAmount < desiredAmount) " (limited by reserves)" else ""
+            toastMessages.value = "Allocated $spendAmount $noun to $label$suffix"
         }
+    }
+
+    fun allocatePoint(type: AttributeType) {
+        allocatePoints(type, 1)
     }
 
     fun consumeMessage() {

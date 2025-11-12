@@ -1,6 +1,7 @@
 package com.battlecell.app.feature.profile
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -24,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,28 +112,28 @@ fun ProfileRoute(
                     value = character.attributes.power,
                     trainingPoints = character.variantSkillPoints(AttributeType.POWER),
                     generalPoints = character.skillPoints,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.POWER) }
+                    onAllocate = { amount -> viewModel.allocatePoints(AttributeType.POWER, amount) }
                 )
                 AttributeAllocationCard(
                     title = stringResource(id = R.string.profile_agility_label),
                     value = character.attributes.agility,
                     trainingPoints = character.variantSkillPoints(AttributeType.AGILITY),
                     generalPoints = character.skillPoints,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.AGILITY) }
+                    onAllocate = { amount -> viewModel.allocatePoints(AttributeType.AGILITY, amount) }
                 )
                 AttributeAllocationCard(
                     title = stringResource(id = R.string.profile_endurance_label),
                     value = character.attributes.endurance,
                     trainingPoints = character.variantSkillPoints(AttributeType.ENDURANCE),
                     generalPoints = character.skillPoints,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.ENDURANCE) }
+                    onAllocate = { amount -> viewModel.allocatePoints(AttributeType.ENDURANCE, amount) }
                 )
                 AttributeAllocationCard(
                     title = stringResource(id = R.string.profile_focus_label),
                     value = character.attributes.focus,
                     trainingPoints = character.variantSkillPoints(AttributeType.FOCUS),
                     generalPoints = character.skillPoints,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.FOCUS) }
+                    onAllocate = { amount -> viewModel.allocatePoints(AttributeType.FOCUS, amount) }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -153,9 +158,13 @@ private fun AttributeAllocationCard(
     value: Int,
     trainingPoints: Int,
     generalPoints: Int,
-    onAllocate: () -> Unit
+    onAllocate: (Int) -> Unit
 ) {
     val canAllocate = trainingPoints + generalPoints > 0
+    val totalAvailable = trainingPoints + generalPoints
+    var menuExpanded by remember { mutableStateOf(false) }
+    val baseOptions = listOf(1, 3, 5, 10).filter { it in 1 until totalAvailable }
+    val menuOptions = (baseOptions + totalAvailable).distinct()
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -191,20 +200,54 @@ private fun AttributeAllocationCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Button(
-                onClick = onAllocate,
-                enabled = canAllocate,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null
-                )
-                Text(
-                    text = stringResource(id = R.string.profile_allocate_button),
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+            Box {
+                Button(
+                    onClick = { if (canAllocate) menuExpanded = true },
+                    enabled = canAllocate,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null
+                    )
+                    Text(
+                        text = stringResource(id = R.string.profile_allocate_button),
+                        modifier = Modifier.padding(start = 8.dp, end = 4.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    if (menuOptions.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text(text = "No sigils available") },
+                            enabled = false,
+                            onClick = {}
+                        )
+                    } else {
+                        menuOptions.forEach { amount ->
+                            val label = if (amount == totalAvailable) {
+                                "Allocate all ($totalAvailable)"
+                            } else {
+                                "Allocate $amount"
+                            }
+                            DropdownMenuItem(
+                                text = { Text(text = label) },
+                                enabled = amount in 1..totalAvailable,
+                                onClick = {
+                                    menuExpanded = false
+                                    onAllocate(amount)
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
     }

@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -368,6 +371,218 @@ private data class RunnerObstacle(
     val passed: Boolean
 )
 
+private interface TrainingPowerUpDescriptor {
+    val id: String
+    val label: String
+    val summary: String
+}
+
+private data class OracleModifiers(
+    val gravityMultiplier: Float = 1f,
+    val jumpImpulseMultiplier: Float = 1f,
+    val horizontalImpulseMultiplier: Float = 1f,
+    val platformWidthBonus: Float = 0f,
+    val platformCountBonus: Int = 0,
+    val frictionMultiplier: Float = 1f,
+    val scoreGoalReduction: Float = 0f,
+    val timeDilation: Float = 1f,
+    val landingForgivenessMultiplier: Float = 1f,
+    val safetyCharges: Int = 0
+)
+
+private data class OraclePowerUp(
+    override val id: String,
+    override val label: String,
+    override val summary: String,
+    val apply: (OracleModifiers) -> OracleModifiers
+) : TrainingPowerUpDescriptor
+
+private val ORACLE_POWER_UPS = listOf(
+    OraclePowerUp(
+        id = "featherfall",
+        label = "Featherfall Veil",
+        summary = "Gravity eased by 25%.",
+        apply = { modifiers ->
+            modifiers.copy(gravityMultiplier = modifiers.gravityMultiplier * 0.75f)
+        }
+    ),
+    OraclePowerUp(
+        id = "springstep",
+        label = "Springstep Greaves",
+        summary = "Jump impulse amplified by 20%.",
+        apply = { modifiers ->
+            modifiers.copy(jumpImpulseMultiplier = modifiers.jumpImpulseMultiplier * 1.2f)
+        }
+    ),
+    OraclePowerUp(
+        id = "skydance",
+        label = "Skydance Anklets",
+        summary = "Horizontal dash extends by 30%.",
+        apply = { modifiers ->
+            modifiers.copy(horizontalImpulseMultiplier = modifiers.horizontalImpulseMultiplier * 1.3f)
+        }
+    ),
+    OraclePowerUp(
+        id = "glyphloom",
+        label = "Glyphloom Wideners",
+        summary = "Platforms widen noticeably.",
+        apply = { modifiers ->
+            modifiers.copy(platformWidthBonus = (modifiers.platformWidthBonus + 0.18f).coerceAtMost(0.6f))
+        }
+    ),
+    OraclePowerUp(
+        id = "echo-grid",
+        label = "Echo Grid",
+        summary = "Two extra platforms manifest.",
+        apply = { modifiers ->
+            modifiers.copy(platformCountBonus = modifiers.platformCountBonus + 2)
+        }
+    ),
+    OraclePowerUp(
+        id = "aether-glide",
+        label = "Aether Glide",
+        summary = "Momentum lingers 8% longer.",
+        apply = { modifiers ->
+            modifiers.copy(frictionMultiplier = (modifiers.frictionMultiplier * 1.08f).coerceAtMost(1.15f))
+        }
+    ),
+    OraclePowerUp(
+        id = "clairvoyance",
+        label = "Clairvoyant Focus",
+        summary = "Goal threshold cut by 25%.",
+        apply = { modifiers ->
+            modifiers.copy(scoreGoalReduction = (modifiers.scoreGoalReduction + 0.25f).coerceAtMost(0.55f))
+        }
+    ),
+    OraclePowerUp(
+        id = "chronowave",
+        label = "Chronowave Field",
+        summary = "Time flow slowed by 15%.",
+        apply = { modifiers ->
+            modifiers.copy(timeDilation = (modifiers.timeDilation * 0.85f).coerceAtLeast(0.65f))
+        }
+    ),
+    OraclePowerUp(
+        id = "softlight",
+        label = "Softlight Halo",
+        summary = "Landing window widens generously.",
+        apply = { modifiers ->
+            modifiers.copy(landingForgivenessMultiplier = (modifiers.landingForgivenessMultiplier * 1.6f).coerceAtMost(2.8f))
+        }
+    ),
+    OraclePowerUp(
+        id = "warded-core",
+        label = "Seraph Ward",
+        summary = "One mist-step shield is granted.",
+        apply = { modifiers ->
+            modifiers.copy(safetyCharges = modifiers.safetyCharges + 1)
+        }
+    )
+)
+
+private data class SentinelModifiers(
+    val speedMultiplier: Float = 1f,
+    val spawnMultiplier: Float = 1f,
+    val obstacleWidthMultiplier: Float = 1f,
+    val shieldCharges: Int = 0,
+    val directLaneSwitch: Boolean = false,
+    val timeDilation: Float = 1f,
+    val goalReduction: Int = 0,
+    val collisionRadiusScale: Float = 1f,
+    val scoreBonus: Int = 0,
+    val lanePreview: Boolean = false
+)
+
+private data class SentinelPowerUp(
+    override val id: String,
+    override val label: String,
+    override val summary: String,
+    val apply: (SentinelModifiers) -> SentinelModifiers
+) : TrainingPowerUpDescriptor
+
+private val SENTINEL_POWER_UPS = listOf(
+    SentinelPowerUp(
+        id = "aegis",
+        label = "Aegis Reservoir",
+        summary = "Grants one protective shield.",
+        apply = { modifiers ->
+            modifiers.copy(shieldCharges = modifiers.shieldCharges + 1)
+        }
+    ),
+    SentinelPowerUp(
+        id = "lane-phase",
+        label = "Phase Greaves",
+        summary = "Tap any lane to shift there instantly.",
+        apply = { modifiers ->
+            modifiers.copy(directLaneSwitch = true)
+        }
+    ),
+    SentinelPowerUp(
+        id = "tempo-anchor",
+        label = "Tempo Anchor",
+        summary = "Time flow slowed by 15%.",
+        apply = { modifiers ->
+            modifiers.copy(timeDilation = (modifiers.timeDilation * 0.85f).coerceAtLeast(0.65f))
+        }
+    ),
+    SentinelPowerUp(
+        id = "wind-buffers",
+        label = "Wind Buffers",
+        summary = "Reduces construct speed 20%.",
+        apply = { modifiers ->
+            modifiers.copy(speedMultiplier = (modifiers.speedMultiplier * 0.8f).coerceAtLeast(0.55f))
+        }
+    ),
+    SentinelPowerUp(
+        id = "spacing-hymn",
+        label = "Spacing Hymn",
+        summary = "Wider gaps between constructs.",
+        apply = { modifiers ->
+            modifiers.copy(spawnMultiplier = (modifiers.spawnMultiplier * 1.25f).coerceAtMost(1.8f))
+        }
+    ),
+    SentinelPowerUp(
+        id = "trimmed-edges",
+        label = "Trimmed Edges",
+        summary = "Constructs slim by 18%.",
+        apply = { modifiers ->
+            modifiers.copy(obstacleWidthMultiplier = (modifiers.obstacleWidthMultiplier * 0.82f).coerceAtLeast(0.55f))
+        }
+    ),
+    SentinelPowerUp(
+        id = "warded-pauldrons",
+        label = "Warded Pauldrons",
+        summary = "Reduces hitbox radius 18%.",
+        apply = { modifiers ->
+            modifiers.copy(collisionRadiusScale = (modifiers.collisionRadiusScale * 0.82f).coerceAtLeast(0.6f))
+        }
+    ),
+    SentinelPowerUp(
+        id = "battle-plan",
+        label = "Battle Plan",
+        summary = "Victory target lowered by three.",
+        apply = { modifiers ->
+            modifiers.copy(goalReduction = modifiers.goalReduction + 3)
+        }
+    ),
+    SentinelPowerUp(
+        id = "momentum-crest",
+        label = "Momentum Crest",
+        summary = "Begin with two constructs outrun.",
+        apply = { modifiers ->
+            modifiers.copy(scoreBonus = modifiers.scoreBonus + 2)
+        }
+    ),
+    SentinelPowerUp(
+        id = "lantern-scout",
+        label = "Lantern Scout",
+        summary = "Highlights incoming lanes.",
+        apply = { modifiers ->
+            modifiers.copy(lanePreview = true)
+        }
+    )
+)
+
 @Composable
 private fun FlappyFlightGame(
     state: TrainingGameUiState,
@@ -380,6 +595,7 @@ private fun FlappyFlightGame(
     val behavior = definition.behavior
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
+    val scoreGoal = difficulty.flappyScoreGoal()
 
     var gamePhase by remember(definition.id + "_flappy") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_flappy") { mutableIntStateOf(0) }
@@ -411,13 +627,13 @@ private fun FlappyFlightGame(
             }
               val birdX = widthPx * 0.28f
               val pipeWidth = with(density) { 52.dp.toPx() }
-              val pipeSpacing = widthPx * (0.45f * difficulty.flappySpacingFactor())
-              val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
+            val pipeSpacing = widthPx * (0.52f * difficulty.flappySpacingFactor())
+            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 36_000) * difficulty.flappyDurationFactor()).roundToInt()
               val gapFactor = difficulty.flappyGapScale()
               val speedScale = difficulty.flappySpeedScale()
-              val gravity = 1200f * speedScale
-              val flapImpulse = -520f * speedScale
-              val pipeSpeed = (widthPx / 2.8f) * speedScale
+            val gravity = 1120f * speedScale
+            val flapImpulse = -480f * speedScale
+            val pipeSpeed = (widthPx / 3.1f) * speedScale
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
@@ -435,7 +651,7 @@ private fun FlappyFlightGame(
                 }
             }
 
-            LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
+              LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) return@LaunchedEffect
                 val start = SystemClock.elapsedRealtime()
                 elapsedMillis = 0L
@@ -485,6 +701,10 @@ private fun FlappyFlightGame(
                         if (!pipe.scored && newX + pipeWidth / 2f < birdX - birdRadiusPx) {
                             newScored = true
                             localScore += 1
+                            if (localScore >= scoreGoal) {
+                                finishRound(true)
+                                return@LaunchedEffect
+                            }
                         }
 
                         if (!defeated) {
@@ -566,15 +786,15 @@ private fun FlappyFlightGame(
                         }
                     }
 
-                      drawSkillGlyph(
-                          attributeType = AttributeType.AGILITY,
-                          center = Offset(birdX, birdY),
-                          radius = birdRadiusPx
-                      )
+                    drawSkillGlyph(
+                        attributeType = AttributeType.AGILITY,
+                        center = Offset(birdX, birdY),
+                        radius = birdRadiusPx
+                    )
                 }
 
                 Text(
-                    text = score.toString(),
+                    text = "$score / $scoreGoal",
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White,
                     modifier = Modifier
@@ -609,7 +829,14 @@ private fun FlappyFlightGame(
                 gamePhase = GamePhase.Idle
                 runId++
             },
-            onExit = onExit
+            onExit = onExit,
+            extraContent = {
+                Text(
+                    text = "Win condition: clear $scoreGoal gates.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                )
+            }
         )
     }
 }
@@ -626,6 +853,15 @@ private fun SubwayRunGame(
     val behavior = definition.behavior
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
+    val selectedPowerUps = remember { mutableStateListOf<SentinelPowerUp>() }
+    val maxSentinelPowerUps = 4
+    val sentinelModifiers = selectedPowerUps.fold(SentinelModifiers()) { acc, powerUp ->
+        powerUp.apply(acc)
+    }
+    var shieldCharges by remember { mutableIntStateOf(0) }
+    val obstacleGoal = (difficulty.runnerObstacleGoal() - sentinelModifiers.goalReduction).coerceAtLeast(3)
+    val scoreBaseline = sentinelModifiers.scoreBonus.coerceAtLeast(0)
+    val speedMultiplier = sentinelModifiers.speedMultiplier.coerceAtLeast(0.5f)
 
     var gamePhase by remember(definition.id + "_runner") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_runner") { mutableIntStateOf(0) }
@@ -656,9 +892,17 @@ private fun SubwayRunGame(
             val playerY = heightPx * 0.78f
             val avatarRadius = with(density) { 24.dp.toPx() * difficulty.runnerAvatarScale() }
             val obstacleHeight = with(density) { 46.dp.toPx() }
-            val obstacleWidth = laneWidth * 0.6f
-            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 60_000) * difficulty.runnerDurationFactor()).roundToInt()
-            val spawnThreshold = heightPx * difficulty.runnerSpawnFactor()
+            val baseObstacleWidth = laneWidth * 0.6f
+            val obstacleWidth = (baseObstacleWidth * sentinelModifiers.obstacleWidthMultiplier)
+                .coerceIn(laneWidth * 0.35f, laneWidth * 0.9f)
+            val collisionRadius = (avatarRadius * 0.78f * sentinelModifiers.collisionRadiusScale)
+                .coerceIn(avatarRadius * 0.45f, avatarRadius)
+            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 52_000) * difficulty.runnerDurationFactor()).roundToInt()
+            val spawnThreshold = (heightPx * difficulty.runnerSpawnFactor() * sentinelModifiers.spawnMultiplier)
+                .coerceIn(heightPx * 0.28f, heightPx * 0.92f)
+            val timeFactor = sentinelModifiers.timeDilation.coerceIn(0.65f, 1.2f)
+            val directSwitch = sentinelModifiers.directLaneSwitch
+            val lanePreview = sentinelModifiers.lanePreview
 
             LaunchedEffect(gamePhase, runId) {
                 if (gamePhase != GamePhase.Playing) {
@@ -668,9 +912,10 @@ private fun SubwayRunGame(
                         startY = -obstacleHeight * 1.5f,
                         seed = runId * 101 + 3
                     )
-                    score = 0
+                    score = scoreBaseline
                     playerLane = 1
                     elapsedMillis = 0L
+                    shieldCharges = sentinelModifiers.shieldCharges
                 }
             }
 
@@ -678,7 +923,9 @@ private fun SubwayRunGame(
                 if (gamePhase != GamePhase.Playing) return@LaunchedEffect
                 val start = SystemClock.elapsedRealtime()
                 var lastTime = start
-                var localScore = 0
+                var localScore = scoreBaseline
+                score = localScore
+                shieldCharges = sentinelModifiers.shieldCharges
 
                 fun finishRound(didWin: Boolean) {
                     val elapsed = SystemClock.elapsedRealtime() - start
@@ -691,16 +938,22 @@ private fun SubwayRunGame(
                 while (isActive && gamePhase == GamePhase.Playing) {
                     val now = SystemClock.elapsedRealtime()
                     val deltaMillis = (now - lastTime).coerceAtMost(48L)
-                    val deltaSeconds = deltaMillis / 1000f
+                    val deltaSeconds = (deltaMillis / 1000f) * timeFactor
                     lastTime = now
                     elapsedMillis = now - start
 
-                    if (elapsedMillis >= missionDuration) {
+                    if (localScore >= obstacleGoal) {
                         finishRound(true)
                         break
                     }
 
-                    val speed = ((heightPx / 2.6f) + (elapsedMillis / 4000f)) * difficulty.runnerSpeedScale()
+                    if (elapsedMillis >= missionDuration && localScore < obstacleGoal) {
+                        finishRound(true)
+                        break
+                    }
+
+                    val speed = ((heightPx / 2.6f) + (elapsedMillis / 4200f)) *
+                        difficulty.runnerSpeedScale() * speedMultiplier
 
                     for (index in obstacles.indices) {
                         val obstacle = obstacles[index]
@@ -708,17 +961,27 @@ private fun SubwayRunGame(
                         var newPassed = obstacle.passed
 
                         val collision = obstacle.lane == playerLane &&
-                                newY + obstacleHeight > playerY - avatarRadius &&
-                                newY < playerY + avatarRadius
+                            newY + obstacleHeight > playerY - collisionRadius &&
+                            newY < playerY + collisionRadius
 
                         if (collision) {
-                            finishRound(false)
-                            return@LaunchedEffect
+                            if (shieldCharges > 0) {
+                                shieldCharges--
+                                newPassed = true
+                            } else {
+                                finishRound(false)
+                                return@LaunchedEffect
+                            }
                         }
 
-                        if (!obstacle.passed && newY > playerY + avatarRadius) {
+                        if (!obstacle.passed && newY > playerY + collisionRadius) {
                             newPassed = true
                             localScore += 1
+                            if (localScore >= obstacleGoal) {
+                                score = localScore
+                                finishRound(true)
+                                return@LaunchedEffect
+                            }
                         }
 
                         obstacles[index] = obstacle.copy(y = newY, passed = newPassed)
@@ -741,69 +1004,97 @@ private fun SubwayRunGame(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(gamePhase, runId) {
-                        detectTapGestures { offset ->
-                            if (gamePhase == GamePhase.Playing) {
-                                val tappedLane = (offset.x / laneWidth).toInt().coerceIn(0, laneCount - 1)
-                                when {
-                                    tappedLane < playerLane -> playerLane = (playerLane - 1).coerceAtLeast(0)
-                                    tappedLane > playerLane -> playerLane = (playerLane + 1).coerceAtMost(laneCount - 1)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(gamePhase, runId) {
+                            detectTapGestures { offset ->
+                                if (gamePhase == GamePhase.Playing) {
+                                    val tappedLane = (offset.x / laneWidth).toInt().coerceIn(0, laneCount - 1)
+                                    if (directSwitch) {
+                                        playerLane = tappedLane
+                                    } else {
+                                        when {
+                                            tappedLane < playerLane -> playerLane = (playerLane - 1).coerceAtLeast(0)
+                                            tappedLane > playerLane -> playerLane = (playerLane + 1).coerceAtMost(laneCount - 1)
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val background = Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF011A27),
-                            Color(0xFF022B40)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val background = Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF011A27),
+                                Color(0xFF022B40)
+                            )
                         )
+                        drawRect(brush = background, size = size)
+
+                        if (lanePreview) {
+                            obstacles
+                                .filter { it.y + obstacleHeight >= -obstacleHeight }
+                                .minByOrNull { it.y }
+                                ?.let { upcoming ->
+                                    val laneCenter = laneWidth * (upcoming.lane + 0.5f)
+                                    drawRect(
+                                        color = Color.White.copy(alpha = 0.12f),
+                                        topLeft = Offset(laneCenter - laneWidth / 2f, 0f),
+                                        size = Size(laneWidth, size.height)
+                                    )
+                                }
+                        }
+
+                        for (lane in 1 until laneCount) {
+                            val x = laneWidth * lane
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.1f),
+                                start = Offset(x, 0f),
+                                end = Offset(x, size.height),
+                                strokeWidth = 4f
+                            )
+                        }
+
+                        obstacles.forEach { obstacle ->
+                            val laneCenter = laneWidth * (obstacle.lane + 0.5f)
+                            drawRoundRect(
+                                color = Color(0xFFFF8A65),
+                                topLeft = Offset(
+                                    laneCenter - obstacleWidth / 2f,
+                                    obstacle.y
+                                ),
+                                size = Size(obstacleWidth, obstacleHeight),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(18f, 18f)
+                            )
+                        }
+
+                        val playerCenterX = laneWidth * (playerLane + 0.5f)
+                        drawSkillGlyph(
+                            attributeType = AttributeType.ENDURANCE,
+                            center = Offset(playerCenterX, playerY),
+                            radius = avatarRadius
+                        )
+                    }
+
+                    Text(
+                        text = "$score / $obstacleGoal",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 16.dp)
                     )
-                    drawRect(brush = background, size = size)
-
-                    for (lane in 1 until laneCount) {
-                        val x = laneWidth * lane
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.1f),
-                            start = Offset(x, 0f),
-                            end = Offset(x, size.height),
-                            strokeWidth = 4f
+                    if (shieldCharges > 0) {
+                        Text(
+                            text = "Shields $shieldCharges",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 20.dp, end = 20.dp)
                         )
                     }
-
-                    obstacles.forEach { obstacle ->
-                        val laneCenter = laneWidth * (obstacle.lane + 0.5f)
-                        drawRoundRect(
-                            color = Color(0xFFFF8A65),
-                            topLeft = Offset(
-                                laneCenter - obstacleWidth / 2f,
-                                obstacle.y
-                            ),
-                            size = Size(obstacleWidth, obstacleHeight),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(18f, 18f)
-                        )
-                    }
-
-                    val playerCenterX = laneWidth * (playerLane + 0.5f)
-                      drawSkillGlyph(
-                          attributeType = AttributeType.ENDURANCE,
-                          center = Offset(playerCenterX, playerY),
-                          radius = avatarRadius
-                      )
-                }
-
-                Text(
-                    text = score.toString(),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 16.dp)
-                )
             }
         }
 
@@ -812,7 +1103,7 @@ private fun SubwayRunGame(
             definition = definition,
             elapsedMillis = elapsedMillis,
             score = score,
-            scoreLabel = "Obstacles cleared",
+            scoreLabel = "Constructs outpaced",
             playingHint = "Tap the lanes to weave past the sentry constructs.",
             defeatMessage = "A sentry construct cut you down.",
             lastResult = state.lastResult,
@@ -820,19 +1111,49 @@ private fun SubwayRunGame(
             onDifficultySelected = onDifficultySelected,
             onStart = {
                 onResetResult()
-                score = 0
+                score = scoreBaseline
                 elapsedMillis = 0L
+                shieldCharges = sentinelModifiers.shieldCharges
                 gamePhase = GamePhase.Playing
                 runId++
             },
             onRetry = {
                 onResetResult()
-                score = 0
+                score = scoreBaseline
                 elapsedMillis = 0L
                 gamePhase = GamePhase.Idle
                 runId++
             },
-            onExit = onExit
+            onExit = onExit,
+            extraContent = {
+                PowerUpSelector(
+                    title = "Sentinel boons",
+                    helpText = "Select up to $maxSentinelPowerUps boons.",
+                    options = SENTINEL_POWER_UPS,
+                    selected = selectedPowerUps,
+                    maxSelected = maxSentinelPowerUps,
+                    onToggle = { powerUp ->
+                        if (selectedPowerUps.contains(powerUp)) {
+                            selectedPowerUps.remove(powerUp)
+                        } else if (selectedPowerUps.size < maxSentinelPowerUps) {
+                            selectedPowerUps.add(powerUp)
+                        }
+                    }
+                )
+                Text(
+                    text = "Win condition: outrun $obstacleGoal constructs.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                if (sentinelModifiers.shieldCharges > 0) {
+                    Text(
+                        text = "Shield reserves: ${sentinelModifiers.shieldCharges}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                    )
+                }
+            }
         )
     }
 }
@@ -849,6 +1170,12 @@ private fun DoodleJumpGame(
     val behavior = definition.behavior
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
+    val selectedPowerUps = remember { mutableStateListOf<OraclePowerUp>() }
+    val maxOraclePowerUps = 4
+    val oracleModifiers = selectedPowerUps.fold(OracleModifiers()) { acc, powerUp ->
+        powerUp.apply(acc)
+    }
+    var guardianCharges by remember { mutableIntStateOf(0) }
 
     var gamePhase by remember(definition.id + "_jump") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_jump") { mutableIntStateOf(0) }
@@ -882,15 +1209,22 @@ private fun DoodleJumpGame(
                 (behavior.bugRadiusDp.takeIf { it > 0f } ?: 20f).dp.toPx()
             }
             val platformHeight = with(density) { 14.dp.toPx() }
-            val platformCount = difficulty.jumpPlatformCount()
             val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 650
-            val requiredScore = kotlin.math.max(
-                300,
-                (baseTarget * difficulty.jumpScoreMultiplier()).roundToInt()
-            )
-            val platformWidthScale = difficulty.jumpPlatformWidthScale()
+            val platformCount = (difficulty.jumpPlatformCount() + oracleModifiers.platformCountBonus).coerceAtLeast(6)
+            val requiredScore = (difficulty.jumpScoreGoal(baseTarget) * (1f - oracleModifiers.scoreGoalReduction))
+                .roundToInt()
+                .coerceAtLeast(80)
+            val platformWidthScale = (difficulty.jumpPlatformWidthScale() + oracleModifiers.platformWidthBonus)
+                .coerceIn(0.65f, 1.6f)
+            val landingForgiveness = avatarRadius *
+                (0.18f * oracleModifiers.landingForgivenessMultiplier).coerceAtLeast(0.12f)
+            val gravityAcceleration = 2100f * difficulty.jumpGravityScale() * oracleModifiers.gravityMultiplier
+            val jumpImpulseValue = -1350f * difficulty.jumpImpulseScale() * oracleModifiers.jumpImpulseMultiplier
+            val dashImpulse = (widthPx / 1.8f) * difficulty.jumpHorizontalScale() * oracleModifiers.horizontalImpulseMultiplier
+            val frictionFactor = (0.85f * oracleModifiers.frictionMultiplier).coerceIn(0.7f, 0.98f)
+            val timeFactor = oracleModifiers.timeDilation.coerceIn(0.65f, 1.2f)
 
-            LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
+            LaunchedEffect(gamePhase, runId, widthPx, heightPx, oracleModifiers) {
                 if (gamePhase != GamePhase.Playing) {
                     val random = Random(runId * 311 + 7)
                     val spacing = heightPx / (platformCount - 1)
@@ -913,7 +1247,7 @@ private fun DoodleJumpGame(
                 }
             }
 
-            LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
+            LaunchedEffect(gamePhase, runId, widthPx, heightPx, oracleModifiers) {
                 if (gamePhase != GamePhase.Playing) return@LaunchedEffect
                 val start = SystemClock.elapsedRealtime()
                 elapsedMillis = 0L
@@ -923,10 +1257,7 @@ private fun DoodleJumpGame(
                 playerY = heightPx * 0.35f
                 playerVelocityX = 0f
                 playerVelocityY = 0f
-                val gravity = 2100f * difficulty.jumpGravityScale()
-                val jumpImpulse = -1350f * difficulty.jumpImpulseScale()
-                val horizontalImpulse = (widthPx / 1.8f) * difficulty.jumpHorizontalScale()
-                val friction = 0.85f
+                guardianCharges = oracleModifiers.safetyCharges
                 val spacing = heightPx / (platformCount - 1)
                 var lastTime = start
 
@@ -940,14 +1271,14 @@ private fun DoodleJumpGame(
                 while (isActive && gamePhase == GamePhase.Playing) {
                     val now = SystemClock.elapsedRealtime()
                     val deltaMillis = (now - lastTime).coerceAtMost(48L)
-                    val deltaSeconds = deltaMillis / 1000f
+                    val deltaSeconds = (deltaMillis / 1000f) * timeFactor
                     lastTime = now
                     elapsedMillis = now - start
 
-                    playerVelocityY += gravity * deltaSeconds
+                    playerVelocityY += gravityAcceleration * deltaSeconds
                     playerY += playerVelocityY * deltaSeconds
                     playerX += playerVelocityX * deltaSeconds
-                    playerVelocityX *= friction
+                    playerVelocityX *= frictionFactor
 
                     if (playerX < avatarRadius) {
                         playerX = avatarRadius
@@ -963,11 +1294,11 @@ private fun DoodleJumpGame(
                             val platformTop = platform.y
                             val overlapX = playerX + avatarRadius > platform.x &&
                                 playerX - avatarRadius < platform.x + platform.width
-                            val overlapY = playerY + avatarRadius >= platformTop &&
-                                playerY + avatarRadius <= platformTop + platformHeight
+                            val overlapY = playerY + avatarRadius >= platformTop - landingForgiveness &&
+                                playerY + avatarRadius <= platformTop + platformHeight + landingForgiveness
                             if (overlapX && overlapY) {
                                 playerY = platformTop - avatarRadius
-                                playerVelocityY = jumpImpulse
+                                playerVelocityY = jumpImpulseValue
                                 break
                             }
                         }
@@ -997,7 +1328,7 @@ private fun DoodleJumpGame(
                         }
                     }
 
-                    score = kotlin.math.max(score, (heightClimbed / 12f).toInt())
+                    score = kotlin.math.max(score, (heightClimbed / 10f).toInt())
 
                     if (score >= requiredScore) {
                         finishRound(true)
@@ -1005,6 +1336,13 @@ private fun DoodleJumpGame(
                     }
 
                     if (playerY - avatarRadius > heightPx) {
+                        if (guardianCharges > 0) {
+                            guardianCharges--
+                            playerY = heightPx * 0.5f
+                            playerVelocityY = jumpImpulseValue * 0.65f
+                            playerVelocityX = 0f
+                            continue
+                        }
                         finishRound(false)
                         break
                     }
@@ -1019,11 +1357,10 @@ private fun DoodleJumpGame(
                     .pointerInput(gamePhase, runId) {
                         detectTapGestures { tapOffset ->
                             if (gamePhase == GamePhase.Playing) {
-                                val horizontalImpulse = widthPx / 1.4f
                                 playerVelocityX = if (tapOffset.x < widthPx / 2f) {
-                                    -horizontalImpulse
+                                    -dashImpulse
                                 } else {
-                                    horizontalImpulse
+                                    dashImpulse
                                 }
                             }
                         }
@@ -1055,7 +1392,7 @@ private fun DoodleJumpGame(
                 }
 
                 Text(
-                    text = "${score}",
+                    text = "$score / $requiredScore",
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White,
                     modifier = Modifier
@@ -1070,7 +1407,7 @@ private fun DoodleJumpGame(
             definition = definition,
             elapsedMillis = elapsedMillis,
             score = score,
-            scoreLabel = "Height reached",
+            scoreLabel = "Resonance gained",
             playingHint = "Tap left or right to guide each leap. Keep climbing the shifting pillars.",
             defeatMessage = "You tumbled into the depths.",
             lastResult = state.lastResult,
@@ -1081,6 +1418,7 @@ private fun DoodleJumpGame(
                 score = 0
                 heightClimbed = 0f
                 elapsedMillis = 0L
+                guardianCharges = oracleModifiers.safetyCharges
                 gamePhase = GamePhase.Playing
                 runId++
             },
@@ -1092,7 +1430,36 @@ private fun DoodleJumpGame(
                 gamePhase = GamePhase.Idle
                 runId++
             },
-            onExit = onExit
+            onExit = onExit,
+            extraContent = {
+                PowerUpSelector(
+                    title = "Oracle boons",
+                    helpText = "Select up to $maxOraclePowerUps boons.",
+                    options = ORACLE_POWER_UPS,
+                    selected = selectedPowerUps,
+                    maxSelected = maxOraclePowerUps,
+                    onToggle = { powerUp ->
+                        if (selectedPowerUps.contains(powerUp)) {
+                            selectedPowerUps.remove(powerUp)
+                        } else if (selectedPowerUps.size < maxOraclePowerUps) {
+                            selectedPowerUps.add(powerUp)
+                        }
+                    }
+                )
+                Text(
+                    text = "Win condition: reach $requiredScore resonance.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                if (oracleModifiers.safetyCharges > 0) {
+                    Text(
+                        text = "Safety shields: ${oracleModifiers.safetyCharges}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                    )
+                }
+            }
         )
     }
 }
@@ -1299,8 +1666,13 @@ private fun ControlPanel(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         val attributeLabel = definition.attributeReward.name.lowercase().replaceFirstChar { it.titlecase() }
+        val rewardLabel = if (selectedDifficulty == Difficulty.LEGENDARY) {
+            "${selectedDifficulty.skillPointReward} universal sigils"
+        } else {
+            "${selectedDifficulty.skillPointReward} $attributeLabel sigils"
+        }
         Text(
-            text = "Difficulty: ${selectedDifficulty.displayName} • Reward ${selectedDifficulty.skillPointReward} $attributeLabel sigils",
+            text = "Difficulty: ${selectedDifficulty.displayName} • Reward $rewardLabel",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground
         )
@@ -1332,8 +1704,13 @@ private fun ControlPanel(
                         )
                     }
                 }
+                val victoryRewardLabel = if (selectedDifficulty == Difficulty.LEGENDARY) {
+                    "${selectedDifficulty.skillPointReward} universal sigils"
+                } else {
+                    "${selectedDifficulty.skillPointReward} $attributeLabel sigils"
+                }
                 Text(
-                    text = "Victory yields ${selectedDifficulty.skillPointReward} $attributeLabel sigils.",
+                    text = "Victory yields $victoryRewardLabel.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                 )
@@ -1387,6 +1764,66 @@ private fun ControlPanel(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T : TrainingPowerUpDescriptor> PowerUpSelector(
+    title: String,
+    helpText: String,
+    options: List<T>,
+    selected: List<T>,
+    maxSelected: Int,
+    onToggle: (T) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = "${selected.size} / $maxSelected selected • $helpText",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val selectedIds = selected.map { it.id }.toSet()
+            options.forEach { option ->
+                val isSelected = selectedIds.contains(option.id)
+                val canSelectMore = isSelected || selected.size < maxSelected
+                FilterChip(
+                    selected = isSelected,
+                    onClick = {
+                        if (canSelectMore) {
+                            onToggle(option)
+                        }
+                    },
+                    enabled = canSelectMore,
+                    label = {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = option.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                text = option.summary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun VictoryPanel(
     lastResult: TrainingGameResult?,
@@ -1417,7 +1854,16 @@ private fun VictoryPanel(
             val subtitle = when (lastResult) {
                 is TrainingGameResult.Victory -> {
                     val attributeLabel = lastResult.attributeType.name.lowercase().replaceFirstChar { it.titlecase() }
-                    "Attribute +${lastResult.attributeGain} $attributeLabel • XP +${lastResult.experienceGain} • ${lastResult.variantSkillPointGain} $attributeLabel sigils (${lastResult.difficulty.displayName})"
+                    val parts = mutableListOf<String>()
+                    parts += "Attribute +${lastResult.attributeGain} $attributeLabel"
+                    parts += "XP +${lastResult.experienceGain}"
+                    if (lastResult.universalSkillPointGain > 0) {
+                        parts += "${lastResult.universalSkillPointGain} universal sigils"
+                    }
+                    if (lastResult.variantSkillPointGain > 0) {
+                        parts += "${lastResult.variantSkillPointGain} $attributeLabel sigils"
+                    }
+                    parts.joinToString(separator = " • ") + " (${lastResult.difficulty.displayName})"
                 }
                 else -> "Attribute boost and experience gained."
             }
@@ -1588,59 +2034,66 @@ private fun Difficulty.bugStartRadiusScale(): Float = when (this) {
 }
 
 private fun Difficulty.flappySpeedScale(): Float = when (this) {
-    Difficulty.EASY -> 0.72f
-    Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 1.22f
-    Difficulty.LEGENDARY -> 1.36f
+    Difficulty.EASY -> 0.65f
+    Difficulty.NORMAL -> 0.9f
+    Difficulty.HARD -> 1.08f
+    Difficulty.LEGENDARY -> 1.2f
 }
 
 private fun Difficulty.flappyGapScale(): Float = when (this) {
-    Difficulty.EASY -> 1.35f
-    Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.82f
-    Difficulty.LEGENDARY -> 0.68f
+    Difficulty.EASY -> 1.45f
+    Difficulty.NORMAL -> 1.1f
+    Difficulty.HARD -> 0.95f
+    Difficulty.LEGENDARY -> 0.82f
 }
 
 private fun Difficulty.flappySpacingFactor(): Float = when (this) {
-    Difficulty.EASY -> 1.35f
-    Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.88f
-    Difficulty.LEGENDARY -> 0.78f
+    Difficulty.EASY -> 1.45f
+    Difficulty.NORMAL -> 1.1f
+    Difficulty.HARD -> 0.95f
+    Difficulty.LEGENDARY -> 0.85f
 }
 
 private fun Difficulty.flappyDurationFactor(): Double = when (this) {
-    Difficulty.EASY -> 1.35
+    Difficulty.EASY -> 1.12
     Difficulty.NORMAL -> 1.0
-    Difficulty.HARD -> 1.15
+    Difficulty.HARD -> 1.18
     Difficulty.LEGENDARY -> 1.28
 }
 
 private fun Difficulty.flappyRadiusScale(): Float = when (this) {
-    Difficulty.EASY -> 1.12f
-    Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.9f
-    Difficulty.LEGENDARY -> 0.82f
+    Difficulty.EASY -> 1.2f
+    Difficulty.NORMAL -> 1.05f
+    Difficulty.HARD -> 0.95f
+    Difficulty.LEGENDARY -> 0.88f
+}
+
+private fun Difficulty.flappyScoreGoal(): Int = when (this) {
+    Difficulty.EASY -> 6
+    Difficulty.NORMAL -> 9
+    Difficulty.HARD -> 13
+    Difficulty.LEGENDARY -> 18
 }
 
 private fun Difficulty.runnerSpeedScale(): Float = when (this) {
-    Difficulty.EASY -> 0.95f
+    Difficulty.EASY -> 0.82f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 1.18f
-    Difficulty.LEGENDARY -> 1.32f
+    Difficulty.HARD -> 1.14f
+    Difficulty.LEGENDARY -> 1.25f
 }
 
 private fun Difficulty.runnerDurationFactor(): Double = when (this) {
-    Difficulty.EASY -> 0.85
+    Difficulty.EASY -> 0.9
     Difficulty.NORMAL -> 1.0
-    Difficulty.HARD -> 1.12
-    Difficulty.LEGENDARY -> 1.25
+    Difficulty.HARD -> 1.1
+    Difficulty.LEGENDARY -> 1.2
 }
 
 private fun Difficulty.runnerSpawnFactor(): Float = when (this) {
-    Difficulty.EASY -> 0.42f
-    Difficulty.NORMAL -> 0.35f
-    Difficulty.HARD -> 0.28f
-    Difficulty.LEGENDARY -> 0.22f
+    Difficulty.EASY -> 0.5f
+    Difficulty.NORMAL -> 0.4f
+    Difficulty.HARD -> 0.32f
+    Difficulty.LEGENDARY -> 0.26f
 }
 
 private fun Difficulty.runnerAvatarScale(): Float = when (this) {
@@ -1650,46 +2103,53 @@ private fun Difficulty.runnerAvatarScale(): Float = when (this) {
     Difficulty.LEGENDARY -> 0.9f
 }
 
-private fun Difficulty.jumpPlatformCount(): Int = when (this) {
-    Difficulty.EASY -> 9
-    Difficulty.NORMAL -> 8
-    Difficulty.HARD -> 7
-    Difficulty.LEGENDARY -> 6
+private fun Difficulty.runnerObstacleGoal(): Int = when (this) {
+    Difficulty.EASY -> 7
+    Difficulty.NORMAL -> 11
+    Difficulty.HARD -> 15
+    Difficulty.LEGENDARY -> 20
 }
 
-private fun Difficulty.jumpScoreMultiplier(): Double = when (this) {
-    Difficulty.EASY -> 0.85
-    Difficulty.NORMAL -> 1.0
-    Difficulty.HARD -> 1.18
-    Difficulty.LEGENDARY -> 1.35
+private fun Difficulty.jumpPlatformCount(): Int = when (this) {
+    Difficulty.EASY -> 10
+    Difficulty.NORMAL -> 9
+    Difficulty.HARD -> 8
+    Difficulty.LEGENDARY -> 7
 }
 
 private fun Difficulty.jumpPlatformWidthScale(): Float = when (this) {
-    Difficulty.EASY -> 1.2f
-    Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.85f
-    Difficulty.LEGENDARY -> 0.72f
-}
-
-private fun Difficulty.jumpGravityScale(): Float = when (this) {
-    Difficulty.EASY -> 0.9f
-    Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 1.12f
-    Difficulty.LEGENDARY -> 1.28f
-}
-
-private fun Difficulty.jumpImpulseScale(): Float = when (this) {
-    Difficulty.EASY -> 1.1f
-    Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.93f
+    Difficulty.EASY -> 1.3f
+    Difficulty.NORMAL -> 1.1f
+    Difficulty.HARD -> 0.95f
     Difficulty.LEGENDARY -> 0.85f
 }
 
+private fun Difficulty.jumpGravityScale(): Float = when (this) {
+    Difficulty.EASY -> 0.78f
+    Difficulty.NORMAL -> 0.9f
+    Difficulty.HARD -> 1.05f
+    Difficulty.LEGENDARY -> 1.18f
+}
+
+private fun Difficulty.jumpImpulseScale(): Float = when (this) {
+    Difficulty.EASY -> 1.18f
+    Difficulty.NORMAL -> 1.05f
+    Difficulty.HARD -> 1.0f
+    Difficulty.LEGENDARY -> 0.95f
+}
+
 private fun Difficulty.jumpHorizontalScale(): Float = when (this) {
-    Difficulty.EASY -> 1.05f
+    Difficulty.EASY -> 1.12f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.9f
-    Difficulty.LEGENDARY -> 0.82f
+    Difficulty.HARD -> 0.92f
+    Difficulty.LEGENDARY -> 0.86f
+}
+
+private fun Difficulty.jumpScoreGoal(baseTarget: Int): Int = when (this) {
+    Difficulty.EASY -> max(120, (baseTarget * 0.5).roundToInt())
+    Difficulty.NORMAL -> max(160, (baseTarget * 0.68).roundToInt())
+    Difficulty.HARD -> max(220, (baseTarget * 0.82).roundToInt())
+    Difficulty.LEGENDARY -> max(280, (baseTarget * 0.95).roundToInt())
 }
 
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectBugTap(

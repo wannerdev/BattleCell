@@ -27,14 +27,14 @@ class GetTrainingGamesUseCase {
         TrainingGameDefinition(
             id = "falcon-wind-course",
             title = "Falcon Wind Course",
-            description = "Guide the mews falcon through arrow slits and pennants without grazing the warded battlements.",
+            description = "Guide the mews falcon through arrow slits and pennants without grazing the warded battlements. Blend in updraft boons to ease the flight.",
             attributeReward = AttributeType.AGILITY,
             difficulty = Difficulty.EASY,
             baseReward = 70,
             icon = "falcon",
             gameType = TrainingGameType.FLAPPY_FLIGHT,
             behavior = TrainingGameBehavior(
-                totalDurationMillis = 52000,
+                totalDurationMillis = 42000,
                 flickerEnabled = false,
                 bugRadiusDp = 28f
             )
@@ -42,29 +42,29 @@ class GetTrainingGamesUseCase {
         TrainingGameDefinition(
             id = "oracle-spire-ascent",
             title = "Oracle's Spire Ascent",
-            description = "Leap from rune dais to rune dais and keep your gaze steady as the spire shudders beneath you.",
+            description = "Leap from rune dais to rune dais, weaving attunement boons as the spire shudders beneath you.",
             attributeReward = AttributeType.FOCUS,
-            difficulty = Difficulty.HARD,
+            difficulty = Difficulty.NORMAL,
             baseReward = 90,
             icon = "eye",
             gameType = TrainingGameType.DOODLE_JUMP,
             behavior = TrainingGameBehavior(
                 totalDurationMillis = 0,
                 bugRadiusDp = 24f,
-                targetScore = 650
+                targetScore = 540
             )
         ),
         TrainingGameDefinition(
             id = "sentinel-rampart-run",
             title = "Sentinel Rampart Run",
-            description = "Charge along the rampart lanes, shift shields, and outlast the tireless sentry constructs.",
+            description = "Charge along the rampart lanes, channel tactical boons, and outlast the tireless sentry constructs.",
             attributeReward = AttributeType.ENDURANCE,
             difficulty = Difficulty.NORMAL,
             baseReward = 80,
             icon = "shield",
             gameType = TrainingGameType.SUBWAY_RUN,
             behavior = TrainingGameBehavior(
-                totalDurationMillis = 64000,
+                totalDurationMillis = 56000,
                 bugRadiusDp = 30f
             )
         )

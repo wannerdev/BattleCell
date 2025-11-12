@@ -95,17 +95,21 @@ class TrainingGameViewModel(
 
             val experienceGain = computeExperience(definition, elapsedMillis, score, didWin, difficulty)
             val attributeGain = computeAttributeGain(definition, elapsedMillis, score, didWin, difficulty)
-            val variantPoints = if (didWin) difficulty.skillPointReward else 0
+            val variantPoints = if (didWin && difficulty != Difficulty.LEGENDARY) difficulty.skillPointReward else 0
+            val universalPoints = if (didWin && difficulty == Difficulty.LEGENDARY) difficulty.skillPointReward else 0
 
-              var updated = player
-                  .gainExperience(experienceGain)
-                  .updateAttributes { attrs ->
-                      attrs.increase(definition.attributeReward, attributeGain)
-                  }
+            var updated = player
+                .gainExperience(experienceGain)
+                .updateAttributes { attrs ->
+                    attrs.increase(definition.attributeReward, attributeGain)
+                }
 
-              if (variantPoints > 0) {
-                  updated = updated.addVariantSkillPoints(definition.attributeReward, variantPoints)
-              }
+            if (variantPoints > 0) {
+                updated = updated.addVariantSkillPoints(definition.attributeReward, variantPoints)
+            }
+            if (universalPoints > 0) {
+                updated = updated.addSkillPoints(universalPoints)
+            }
 
               val entry = TrainingScoreEntry(
                   score = score,
@@ -131,6 +135,7 @@ class TrainingGameViewModel(
                 experienceGain = experienceGain,
                 attributeType = definition.attributeReward,
                 variantSkillPointGain = variantPoints,
+                universalSkillPointGain = universalPoints,
                 difficulty = difficulty
             )
             resultFlow.value = result
@@ -145,6 +150,7 @@ class TrainingGameViewModel(
         didWin: Boolean,
         difficulty: Difficulty
     ): Int {
+        if (definition.id == "gauntlet-drill") return 0
         val base = definition.baseReward
         val raw = when (definition.gameType) {
             TrainingGameType.BUG_HUNT -> {
@@ -260,6 +266,7 @@ sealed interface TrainingGameResult {
         val experienceGain: Int,
         val attributeType: AttributeType,
         val variantSkillPointGain: Int,
+        val universalSkillPointGain: Int,
         val difficulty: Difficulty
     ) : TrainingGameResult
 
