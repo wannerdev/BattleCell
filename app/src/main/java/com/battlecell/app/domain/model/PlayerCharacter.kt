@@ -16,6 +16,8 @@ data class PlayerCharacter(
     @SerialName("defeats") val defeats: Int = 0,
     @SerialName("skill_points") val skillPoints: Int = 0,
     @SerialName("skill_ledger") val skillLedger: SkillPointLedger = SkillPointLedger(),
+    @SerialName("status_points") val statusPoints: Int = 0,
+    @SerialName("training_high_scores") val trainingHighScores: Map<String, TrainingGameScores> = emptyMap(),
     @SerialName("created_at") val createdAtEpoch: Long = System.currentTimeMillis(),
     @SerialName("updated_at") val updatedAtEpoch: Long = System.currentTimeMillis()
 ) {
@@ -27,25 +29,11 @@ data class PlayerCharacter(
 
     fun gainExperience(amount: Int): PlayerCharacter {
         val newExperience = max(0, experience + amount)
-        var tempLevel = level
-        var tempExperience = newExperience
-        var tempSkillPoints = skillPoints
-
-        while (tempExperience >= experienceToLevel(tempLevel)) {
-            tempExperience -= experienceToLevel(tempLevel)
-            tempLevel += 1
-            tempSkillPoints += 3
-        }
-
         return copy(
-            level = tempLevel,
-            experience = tempExperience,
-            skillPoints = tempSkillPoints,
+            experience = newExperience,
             updatedAtEpoch = System.currentTimeMillis()
         )
     }
-
-    private fun experienceToLevel(level: Int): Int = 200 + (level * 50)
 
     fun spendSkillPoints(type: AttributeType, amount: Int): PlayerCharacter {
         val actualAmount = max(0, amount)
@@ -107,4 +95,39 @@ data class PlayerCharacter(
     }
 
     fun variantSkillPoints(type: AttributeType): Int = skillLedger.get(type)
+
+    fun updateTrainingHighScore(
+        gameId: String,
+        difficulty: Difficulty,
+        entry: TrainingScoreEntry,
+        comparator: (old: TrainingScoreEntry, new: TrainingScoreEntry) -> Boolean
+    ): PlayerCharacter {
+        val current = trainingHighScores[gameId] ?: TrainingGameScores()
+        val updatedScores = current.withScore(difficulty, entry, comparator)
+        if (updatedScores == current) return this
+        return copy(
+            trainingHighScores = trainingHighScores + (gameId to updatedScores),
+            updatedAtEpoch = System.currentTimeMillis()
+        )
+    }
+
+    fun gainStatusPoints(amount: Int): PlayerCharacter {
+        if (amount <= 0) return this
+        val newStatus = statusPoints + amount
+        val newLevel = statusLevel(newStatus)
+        val levelDelta = newLevel - level
+        val newSkillPoints = if (levelDelta > 0) skillPoints + (levelDelta * 2) else skillPoints
+        return copy(
+            statusPoints = newStatus,
+            level = newLevel,
+            skillPoints = newSkillPoints,
+            updatedAtEpoch = System.currentTimeMillis()
+        )
+    }
+
+    private fun statusLevel(status: Int): Int = 1 + status / STATUS_POINTS_PER_LEVEL
+
+    companion object {
+        private const val STATUS_POINTS_PER_LEVEL = 6
+    }
 }
