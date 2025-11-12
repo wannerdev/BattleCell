@@ -727,6 +727,7 @@ private fun SubwayRunGame(
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
     val powerUpCatalog = remember { runnerPowerUpCatalog() }
+    val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 60_000) * difficulty.runnerDurationFactor()).roundToInt()
 
     var gamePhase by remember(definition.id + "_runner") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_runner") { mutableIntStateOf(0) }
@@ -770,7 +771,6 @@ private fun SubwayRunGame(
             val avatarRadius = with(density) { 20.dp.toPx() * difficulty.runnerAvatarScale() }
             val obstacleHeight = with(density) { 46.dp.toPx() }
             val obstacleWidth = laneWidth * 0.6f
-            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 60_000) * difficulty.runnerDurationFactor()).roundToInt()
             val baseSpawnFactor = difficulty.runnerSpawnFactor()
             val powerUpRadius = laneWidth * 0.22f
 
@@ -1095,6 +1095,11 @@ private fun DoodleJumpGame(
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
     val powerUpCatalog = remember { jumpPowerUpCatalog() }
+    val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 650
+    val requiredScore = max(
+        180,
+        (baseTarget * difficulty.jumpScoreMultiplier()).roundToInt()
+    )
 
     var gamePhase by remember(definition.id + "_jump") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_jump") { mutableIntStateOf(0) }
@@ -1144,11 +1149,6 @@ private fun DoodleJumpGame(
             }
             val platformHeight = with(density) { 14.dp.toPx() }
             val platformCount = difficulty.jumpPlatformCount()
-            val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 650
-            val requiredScore = max(
-                180,
-                (baseTarget * difficulty.jumpScoreMultiplier()).roundToInt()
-            )
             val platformWidthScale = difficulty.jumpPlatformWidthScale()
             val spacing = heightPx / (platformCount - 1)
             val horizontalImpulseState = rememberUpdatedState(pointerHorizontalImpulse)
