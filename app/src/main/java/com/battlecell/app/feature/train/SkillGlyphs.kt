@@ -101,13 +101,13 @@ private fun DrawScope.drawAgilityGlyph(center: Offset, radius: Float) {
     fun wing(isLeft: Boolean): Path = Path().apply {
         val direction = if (isLeft) -1 else 1
         moveTo(center.x + direction * wingSpan / 2f, center.y)
-        quadTo(
+        quadraticBezierTo(
             center.x + direction * wingSpan / 3f,
             center.y - wingHeight,
             center.x,
             center.y - wingHeight * 0.25f
         )
-        quadTo(
+        quadraticBezierTo(
             center.x + direction * wingSpan / 3f,
             center.y + wingHeight * 0.25f,
             center.x + direction * wingSpan / 2f,
@@ -118,8 +118,8 @@ private fun DrawScope.drawAgilityGlyph(center: Offset, radius: Float) {
 
     val body = Path().apply {
         moveTo(center.x, center.y - bodyHeight / 2f)
-        quadTo(center.x - radius * 0.32f, center.y, center.x, center.y + bodyHeight / 2f)
-        quadTo(center.x + radius * 0.32f, center.y, center.x, center.y - bodyHeight / 2f)
+        quadraticBezierTo(center.x - radius * 0.32f, center.y, center.x, center.y + bodyHeight / 2f)
+        quadraticBezierTo(center.x + radius * 0.32f, center.y, center.x, center.y - bodyHeight / 2f)
         close()
     }
 
@@ -168,10 +168,10 @@ private fun DrawScope.drawEnduranceGlyph(center: Offset, radius: Float) {
 
     fun shieldPath(width: Float, height: Float): Path = Path().apply {
         moveTo(center.x, center.y - height / 2f)
-        quadTo(center.x + width / 2f, center.y - height / 4f, center.x + width / 3.4f, center.y + height / 3f)
+        quadraticBezierTo(center.x + width / 2f, center.y - height / 4f, center.x + width / 3.4f, center.y + height / 3f)
         lineTo(center.x, center.y + height / 2f)
         lineTo(center.x - width / 3.4f, center.y + height / 3f)
-        quadTo(center.x - width / 2f, center.y - height / 4f, center.x, center.y - height / 2f)
+        quadraticBezierTo(center.x - width / 2f, center.y - height / 4f, center.x, center.y - height / 2f)
         close()
     }
 

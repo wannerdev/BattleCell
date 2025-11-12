@@ -261,26 +261,3 @@ private fun formatAchieved(epochMillis: Long): String {
     val formatter = SimpleDateFormat("MMM d • HH:mm", Locale.getDefault())
     return formatter.format(Date(epochMillis))
 }
-            Text(
-                text = definition.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-              Row(
-                  horizontalArrangement = Arrangement.spacedBy(12.dp),
-                  verticalAlignment = Alignment.CenterVertically
-              ) {
-                  Button(
-                      onClick = onPlay,
-                      shape = RoundedCornerShape(12.dp),
-                      contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
-                  ) {
-                      Text(text = stringResource(id = R.string.training_play_button))
-                  }
-                  TextButton(onClick = onViewHighScores) {
-                      Text(text = stringResource(id = R.string.training_view_high_scores))
-                  }
-              }
-        }
-    }
-}

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -187,7 +188,7 @@ private fun ParticipantCard(
     isPlayer: Boolean
 ) {
     Card(
-        modifier = Modifier.width(0.dp).weight(1f),
+        modifier = Modifier.weight(1f),
         colors = CardDefaults.cardColors(
             containerColor = if (isPlayer) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             else MaterialTheme.colorScheme.surfaceVariant
@@ -229,7 +230,7 @@ private fun ParticipantCard(
     isPlayer: Boolean
 ) {
     Card(
-        modifier = Modifier.width(0.dp).weight(1f),
+        modifier = Modifier.weight(1f),
         colors = CardDefaults.cardColors(
             containerColor = if (isPlayer) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             else MaterialTheme.colorScheme.surfaceVariant

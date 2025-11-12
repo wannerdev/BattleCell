@@ -39,7 +39,13 @@ class BattleViewModel(
         resultState,
         processingState,
         toastMessage
-    ) { player, opponent, roulette, result, isProcessing, message ->
+    ) { tuple: Array<Any?> ->
+        val player = tuple[0] as PlayerCharacter?
+        val opponent = tuple[1] as EncounterProfile?
+        val roulette = tuple[2] as RouletteState?
+        val result = tuple[3] as BattleResult?
+        val isProcessing = tuple[4] as Boolean
+        val message = tuple[5] as String?
         val comparison = computeComparison(player, opponent)
         BattleUiState(
             player = player,
