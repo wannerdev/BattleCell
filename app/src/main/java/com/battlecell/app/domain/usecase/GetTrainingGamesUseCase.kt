@@ -36,7 +36,8 @@ class GetTrainingGamesUseCase {
             behavior = TrainingGameBehavior(
                 totalDurationMillis = 52000,
                 flickerEnabled = false,
-                bugRadiusDp = 28f
+                bugRadiusDp = 28f,
+                targetScore = 8
             )
         ),
         TrainingGameDefinition(
@@ -44,14 +45,14 @@ class GetTrainingGamesUseCase {
             title = "Oracle's Spire Ascent",
             description = "Leap from rune dais to rune dais and keep your gaze steady as the spire shudders beneath you.",
             attributeReward = AttributeType.FOCUS,
-            difficulty = Difficulty.HARD,
+            difficulty = Difficulty.NORMAL,
             baseReward = 90,
             icon = "eye",
             gameType = TrainingGameType.DOODLE_JUMP,
             behavior = TrainingGameBehavior(
                 totalDurationMillis = 0,
                 bugRadiusDp = 24f,
-                targetScore = 650
+                targetScore = 480
             )
         ),
         TrainingGameDefinition(

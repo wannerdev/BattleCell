@@ -95,7 +95,8 @@ class TrainingGameViewModel(
 
             val experienceGain = computeExperience(definition, elapsedMillis, score, didWin, difficulty)
             val attributeGain = computeAttributeGain(definition, elapsedMillis, score, didWin, difficulty)
-            val variantPoints = if (didWin) difficulty.skillPointReward else 0
+            val variantPoints = if (didWin && difficulty != Difficulty.LEGENDARY) difficulty.skillPointReward else 0
+            val generalSkillPoints = if (didWin && difficulty == Difficulty.LEGENDARY) difficulty.skillPointReward else 0
 
               var updated = player
                   .gainExperience(experienceGain)
@@ -106,6 +107,9 @@ class TrainingGameViewModel(
               if (variantPoints > 0) {
                   updated = updated.addVariantSkillPoints(definition.attributeReward, variantPoints)
               }
+            if (generalSkillPoints > 0) {
+                updated = updated.addSkillPoints(generalSkillPoints)
+            }
 
               val entry = TrainingScoreEntry(
                   score = score,
@@ -131,6 +135,7 @@ class TrainingGameViewModel(
                 experienceGain = experienceGain,
                 attributeType = definition.attributeReward,
                 variantSkillPointGain = variantPoints,
+                generalSkillPointGain = generalSkillPoints,
                 difficulty = difficulty
             )
             resultFlow.value = result
@@ -147,14 +152,7 @@ class TrainingGameViewModel(
     ): Int {
         val base = definition.baseReward
         val raw = when (definition.gameType) {
-            TrainingGameType.BUG_HUNT -> {
-                if (definition.behavior.flickerEnabled) {
-                    val bonus = max(0, (definition.behavior.totalDurationMillis - elapsedMillis).toInt())
-                    base + (bonus / 40)
-                } else {
-                    base
-                }
-            }
+            TrainingGameType.BUG_HUNT -> 0
 
             TrainingGameType.FLAPPY_FLIGHT -> {
                 val duration = definition.behavior.totalDurationMillis.takeIf { it > 0 } ?: 45000
@@ -260,6 +258,7 @@ sealed interface TrainingGameResult {
         val experienceGain: Int,
         val attributeType: AttributeType,
         val variantSkillPointGain: Int,
+        val generalSkillPointGain: Int,
         val difficulty: Difficulty
     ) : TrainingGameResult
 

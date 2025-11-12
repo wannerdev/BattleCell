@@ -75,6 +75,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.PI
 import kotlin.math.cos
@@ -95,9 +97,24 @@ fun TrainingGameRoute(
             when (event) {
                 is TrainingGameEvent.Error -> snackbarHostState.showSnackbar(event.message)
                 TrainingGameEvent.Defeat -> snackbarHostState.showSnackbar("Challenge failed. Try again.")
-                is TrainingGameEvent.Victory -> snackbarHostState.showSnackbar(
-                    "Victory! +${event.result.attributeGain} ${event.result.attributeType.name.lowercase()} - +${event.result.experienceGain} XP"
-                )
+                is TrainingGameEvent.Victory -> {
+                    val attributeLabel = event.result.attributeType.name.lowercase()
+                    val rewardParts = buildList {
+                        add("+${event.result.attributeGain} $attributeLabel")
+                        if (event.result.experienceGain > 0) {
+                            add("+${event.result.experienceGain} xp")
+                        }
+                        if (event.result.variantSkillPointGain > 0) {
+                            add("+${event.result.variantSkillPointGain} $attributeLabel sigils")
+                        }
+                        if (event.result.generalSkillPointGain > 0) {
+                            add("+${event.result.generalSkillPointGain} universal skill points")
+                        }
+                    }
+                    snackbarHostState.showSnackbar(
+                        "Victory! ${rewardParts.joinToString(separator = " · ")}"
+                    )
+                }
             }
         }
     }
@@ -368,6 +385,83 @@ private data class RunnerObstacle(
     val passed: Boolean
 )
 
+private data class JumpPowerUpDefinition(
+    val id: Int,
+    val name: String,
+    val color: Color,
+    val durationMillis: Long? = null,
+    val jumpImpulseMultiplier: Float = 1f,
+    val gravityMultiplier: Float = 1f,
+    val horizontalImpulseMultiplier: Float = 1f,
+    val platformWidthMultiplier: Float = 1f,
+    val timeScale: Float = 1f,
+    val scoreMultiplier: Float = 1f,
+    val safetyNetCharges: Int = 0,
+    val scoreBonus: Int = 0
+)
+
+private data class JumpPowerUpSpawn(
+    val definition: JumpPowerUpDefinition,
+    val x: Float,
+    val y: Float,
+    val radius: Float,
+    val collected: Boolean = false
+)
+
+private data class ActiveJumpPowerUp(
+    val definition: JumpPowerUpDefinition,
+    val expiresAt: Long
+)
+
+private data class RunnerPowerUpDefinition(
+    val id: Int,
+    val name: String,
+    val color: Color,
+    val durationMillis: Long? = null,
+    val speedMultiplier: Float = 1f,
+    val spawnSpacingMultiplier: Float = 1f,
+    val hitboxMultiplier: Float = 1f,
+    val timeScale: Float = 1f,
+    val scoreMultiplier: Float = 1f,
+    val shieldCharges: Int = 0,
+    val scoreBonus: Int = 0
+)
+
+private data class RunnerPowerUpSpawn(
+    val definition: RunnerPowerUpDefinition,
+    val lane: Int,
+    val y: Float,
+    val radius: Float,
+    val collected: Boolean = false
+)
+
+private data class ActiveRunnerPowerUp(
+    val definition: RunnerPowerUpDefinition,
+    val expiresAt: Long
+)
+
+private data class CollectedBoost(
+    val name: String,
+    val expiresAt: Long
+)
+
+private data class JumpEffectAggregate(
+    val jumpImpulseMultiplier: Float = 1f,
+    val gravityMultiplier: Float = 1f,
+    val horizontalImpulseMultiplier: Float = 1f,
+    val platformWidthMultiplier: Float = 1f,
+    val timeScale: Float = 1f,
+    val scoreMultiplier: Float = 1f
+)
+
+private data class RunnerEffectAggregate(
+    val speedMultiplier: Float = 1f,
+    val spawnSpacingMultiplier: Float = 1f,
+    val hitboxMultiplier: Float = 1f,
+    val timeScale: Float = 1f,
+    val scoreMultiplier: Float = 1f
+)
+
 @Composable
 private fun FlappyFlightGame(
     state: TrainingGameUiState,
@@ -380,6 +474,7 @@ private fun FlappyFlightGame(
     val behavior = definition.behavior
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
+    val targetScore = (behavior.targetScore.takeIf { it > 0 } ?: difficulty.flappyVictoryTarget()).coerceAtLeast(3)
 
     var gamePhase by remember(definition.id + "_flappy") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_flappy") { mutableIntStateOf(0) }
@@ -410,14 +505,14 @@ private fun FlappyFlightGame(
                 (behavior.bugRadiusDp.takeIf { it > 0f } ?: 24f).dp.toPx() * difficulty.flappyRadiusScale()
             }
               val birdX = widthPx * 0.28f
-              val pipeWidth = with(density) { 52.dp.toPx() }
+            val pipeWidth = with(density) { 56.dp.toPx() }
               val pipeSpacing = widthPx * (0.45f * difficulty.flappySpacingFactor())
-              val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
+            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 36_000) * difficulty.flappyDurationFactor()).roundToInt()
               val gapFactor = difficulty.flappyGapScale()
               val speedScale = difficulty.flappySpeedScale()
-              val gravity = 1200f * speedScale
-              val flapImpulse = -520f * speedScale
-              val pipeSpeed = (widthPx / 2.8f) * speedScale
+            val gravity = 980f * speedScale
+            val flapImpulse = -480f * speedScale
+            val pipeSpeed = (widthPx / 3.1f) * speedScale
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
@@ -515,7 +610,12 @@ private fun FlappyFlightGame(
                         )
                     }
 
-                    score = localScore
+                        score = localScore
+
+                        if (localScore >= targetScore) {
+                            finishRound(true)
+                            break
+                        }
 
                     if (defeated) {
                         finishRound(false)
@@ -566,15 +666,15 @@ private fun FlappyFlightGame(
                         }
                     }
 
-                      drawSkillGlyph(
-                          attributeType = AttributeType.AGILITY,
-                          center = Offset(birdX, birdY),
-                          radius = birdRadiusPx
-                      )
+                        drawSkillGlyph(
+                            attributeType = AttributeType.AGILITY,
+                            center = Offset(birdX, birdY),
+                            radius = birdRadiusPx
+                        )
                 }
 
                 Text(
-                    text = score.toString(),
+                    text = "$score / $targetScore",
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White,
                     modifier = Modifier
@@ -589,8 +689,8 @@ private fun FlappyFlightGame(
             definition = definition,
             elapsedMillis = elapsedMillis,
             score = score,
-            scoreLabel = "Gates cleared",
-            playingHint = "Tap to give your falcon lift. Thread the warded pylons.",
+            scoreLabel = "Gates cleared (goal $targetScore)",
+            playingHint = "Tap to give your falcon lift. Thread the warded pylons. Goal: $targetScore gates.",
             defeatMessage = "The scout clipped a charged pylon.",
             lastResult = state.lastResult,
             selectedDifficulty = state.selectedDifficulty,
@@ -626,6 +726,7 @@ private fun SubwayRunGame(
     val behavior = definition.behavior
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
+    val powerUpCatalog = remember { runnerPowerUpCatalog() }
 
     var gamePhase by remember(definition.id + "_runner") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_runner") { mutableIntStateOf(0) }
@@ -633,6 +734,18 @@ private fun SubwayRunGame(
     var score by remember { mutableIntStateOf(0) }
     var playerLane by remember { mutableIntStateOf(1) }
     val obstacles = remember { mutableStateListOf<RunnerObstacle>() }
+    val runnerPowerUps = remember { mutableStateListOf<RunnerPowerUpSpawn>() }
+    val activeRunnerEffects = remember { mutableStateListOf<ActiveRunnerPowerUp>() }
+    var shieldCharges by remember { mutableIntStateOf(0) }
+    var recentBoost by remember { mutableStateOf<CollectedBoost?>(null) }
+    var clockTick by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            clockTick = SystemClock.elapsedRealtime()
+            delay(250)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -654,27 +767,46 @@ private fun SubwayRunGame(
             val laneCount = 3
             val laneWidth = widthPx / laneCount
             val playerY = heightPx * 0.78f
-            val avatarRadius = with(density) { 24.dp.toPx() * difficulty.runnerAvatarScale() }
+            val avatarRadius = with(density) { 20.dp.toPx() * difficulty.runnerAvatarScale() }
             val obstacleHeight = with(density) { 46.dp.toPx() }
             val obstacleWidth = laneWidth * 0.6f
             val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 60_000) * difficulty.runnerDurationFactor()).roundToInt()
-            val spawnThreshold = heightPx * difficulty.runnerSpawnFactor()
+            val baseSpawnFactor = difficulty.runnerSpawnFactor()
+            val powerUpRadius = laneWidth * 0.22f
 
-            LaunchedEffect(gamePhase, runId) {
+            fun resetCourse() {
+                val random = Random(runId * 101 + 3)
+                obstacles.clear()
+                obstacles += generateRunnerObstacle(
+                    laneCount = laneCount,
+                    startY = -obstacleHeight * 1.5f,
+                    seed = random.nextInt()
+                )
+                runnerPowerUps.clear()
+                val shuffledCatalog = powerUpCatalog.shuffled(Random(runId * 2909 + 41))
+                runnerPowerUps += generateRunnerPowerUpsForRun(
+                    catalog = shuffledCatalog,
+                    laneCount = laneCount,
+                    laneWidth = laneWidth,
+                    heightPx = heightPx,
+                    runSeed = runId,
+                    radius = powerUpRadius
+                )
+                activeRunnerEffects.clear()
+                shieldCharges = 0
+                recentBoost = null
+                playerLane = 1
+                score = 0
+                elapsedMillis = 0L
+            }
+
+            LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
-                    obstacles.clear()
-                    obstacles += generateRunnerObstacle(
-                        laneCount = laneCount,
-                        startY = -obstacleHeight * 1.5f,
-                        seed = runId * 101 + 3
-                    )
-                    score = 0
-                    playerLane = 1
-                    elapsedMillis = 0L
+                    resetCourse()
                 }
             }
 
-            LaunchedEffect(gamePhase, runId) {
+            LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) return@LaunchedEffect
                 val start = SystemClock.elapsedRealtime()
                 var lastTime = start
@@ -691,41 +823,95 @@ private fun SubwayRunGame(
                 while (isActive && gamePhase == GamePhase.Playing) {
                     val now = SystemClock.elapsedRealtime()
                     val deltaMillis = (now - lastTime).coerceAtMost(48L)
-                    val deltaSeconds = deltaMillis / 1000f
                     lastTime = now
-                    elapsedMillis = now - start
 
-                    if (elapsedMillis >= missionDuration) {
-                        finishRound(true)
-                        break
+                    activeRunnerEffects.removeAll { it.expiresAt != Long.MAX_VALUE && now > it.expiresAt }
+                    if (recentBoost?.expiresAt?.let { now > it } == true) {
+                        recentBoost = null
                     }
 
-                    val speed = ((heightPx / 2.6f) + (elapsedMillis / 4000f)) * difficulty.runnerSpeedScale()
+                    val aggregate = activeRunnerEffects.aggregateRunnerEffects()
+                    val adjustedDeltaSeconds = (deltaMillis / 1000f) * aggregate.timeScale
+                    elapsedMillis = now - start
+
+                    val baseSpeed = ((heightPx / 2.6f) + (elapsedMillis / 4000f))
+                    val speed = baseSpeed * difficulty.runnerSpeedScale() * aggregate.speedMultiplier
+                    val collisionRadius = avatarRadius * aggregate.hitboxMultiplier
+                    val spawnThreshold = heightPx * baseSpawnFactor * aggregate.spawnSpacingMultiplier
+
+                    for (index in runnerPowerUps.indices) {
+                        val spawn = runnerPowerUps[index]
+                        if (spawn.collected) continue
+                        val newY = spawn.y + speed * adjustedDeltaSeconds
+                        var updatedSpawn = spawn.copy(y = newY)
+
+                        if (spawn.lane == playerLane &&
+                            newY + spawn.radius > playerY - collisionRadius &&
+                            newY - spawn.radius < playerY + collisionRadius
+                        ) {
+                            val collectedAt = SystemClock.elapsedRealtime()
+                            if (spawn.definition.hasContinuousEffect()) {
+                                val expiresAt = if (spawn.definition.durationMillis == null) {
+                                    Long.MAX_VALUE
+                                } else {
+                                    collectedAt + spawn.definition.durationMillis
+                                }
+                                activeRunnerEffects += ActiveRunnerPowerUp(spawn.definition, expiresAt)
+                            }
+                            if (spawn.definition.shieldCharges > 0) {
+                                shieldCharges += spawn.definition.shieldCharges
+                            }
+                            if (spawn.definition.scoreBonus != 0) {
+                                localScore += spawn.definition.scoreBonus
+                            }
+                            recentBoost = CollectedBoost(spawn.definition.name, collectedAt + 3200L)
+                            updatedSpawn = spawn.copy(collected = true, y = -heightPx * 2f)
+                        } else if (newY > heightPx + spawn.radius) {
+                            val resetSeed = runId * 613 + index * 29 + localScore * 7
+                            val random = Random(resetSeed)
+                            updatedSpawn = spawn.copy(
+                                lane = random.nextInt(laneCount),
+                                y = -heightPx * random.nextDouble(0.6, 1.2).toFloat(),
+                                collected = false
+                            )
+                        }
+                        runnerPowerUps[index] = updatedSpawn
+                    }
 
                     for (index in obstacles.indices) {
                         val obstacle = obstacles[index]
-                        val newY = obstacle.y + speed * deltaSeconds
+                        val newY = obstacle.y + speed * adjustedDeltaSeconds
                         var newPassed = obstacle.passed
+                        var collision = false
 
-                        val collision = obstacle.lane == playerLane &&
-                                newY + obstacleHeight > playerY - avatarRadius &&
-                                newY < playerY + avatarRadius
-
-                        if (collision) {
-                            finishRound(false)
-                            return@LaunchedEffect
+                        if (obstacle.lane == playerLane &&
+                            newY + obstacleHeight > playerY - collisionRadius &&
+                            newY < playerY + collisionRadius
+                        ) {
+                            collision = true
                         }
 
-                        if (!obstacle.passed && newY > playerY + avatarRadius) {
+                        if (!obstacle.passed && newY > playerY + collisionRadius) {
                             newPassed = true
-                            localScore += 1
+                            val gain = max(1, aggregate.scoreMultiplier.roundToInt())
+                            localScore += gain
+                        }
+
+                        if (collision) {
+                            if (shieldCharges > 0) {
+                                shieldCharges -= 1
+                                recentBoost = CollectedBoost("Shield absorbed", now + 2000L)
+                                newPassed = true
+                            } else {
+                                finishRound(false)
+                                return@LaunchedEffect
+                            }
                         }
 
                         obstacles[index] = obstacle.copy(y = newY, passed = newPassed)
                     }
 
                     obstacles.removeAll { it.y > heightPx + obstacleHeight }
-
                     if (obstacles.isEmpty() || obstacles.last().y > spawnThreshold) {
                         val seed = runId * 373 + localScore * 19 + obstacles.size * 11
                         obstacles += generateRunnerObstacle(
@@ -736,6 +922,11 @@ private fun SubwayRunGame(
                     }
 
                     score = localScore
+
+                    if (elapsedMillis >= missionDuration) {
+                        finishRound(true)
+                        break
+                    }
 
                     delay(16)
                 }
@@ -756,6 +947,8 @@ private fun SubwayRunGame(
                         }
                     }
             ) {
+                val runnerAggregate = activeRunnerEffects.aggregateRunnerEffects()
+                val renderRadius = avatarRadius * runnerAggregate.hitboxMultiplier.coerceAtLeast(0.65f)
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val background = Brush.verticalGradient(
                         colors = listOf(
@@ -775,6 +968,22 @@ private fun SubwayRunGame(
                         )
                     }
 
+                    runnerPowerUps.forEach { spawn ->
+                        if (!spawn.collected) {
+                            val laneCenter = laneWidth * (spawn.lane + 0.5f)
+                            drawCircle(
+                                color = spawn.definition.color,
+                                radius = spawn.radius,
+                                center = Offset(laneCenter, spawn.y)
+                            )
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.3f),
+                                radius = spawn.radius * 0.45f,
+                                center = Offset(laneCenter, spawn.y)
+                            )
+                        }
+                    }
+
                     obstacles.forEach { obstacle ->
                         val laneCenter = laneWidth * (obstacle.lane + 0.5f)
                         drawRoundRect(
@@ -789,11 +998,47 @@ private fun SubwayRunGame(
                     }
 
                     val playerCenterX = laneWidth * (playerLane + 0.5f)
-                      drawSkillGlyph(
-                          attributeType = AttributeType.ENDURANCE,
-                          center = Offset(playerCenterX, playerY),
-                          radius = avatarRadius
-                      )
+                    drawSkillGlyph(
+                        attributeType = AttributeType.ENDURANCE,
+                        center = Offset(playerCenterX, playerY),
+                        radius = renderRadius
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    recentBoost?.let {
+                        Text(
+                            text = "Boon: ${it.name}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                    }
+                    val activeLabels = activeRunnerEffects.takeIf { it.isNotEmpty() }?.map { effect ->
+                        val remaining =
+                            if (effect.expiresAt == Long.MAX_VALUE) null
+                            else ((effect.expiresAt - clockTick).coerceAtLeast(0L) / 1000f)
+                        if (remaining == null) effect.definition.name
+                        else "${effect.definition.name} ${"%.1f".format(remaining)}s"
+                    }.orEmpty()
+                    if (activeLabels.isNotEmpty()) {
+                        Text(
+                            text = activeLabels.joinToString(separator = "\n"),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                    if (shieldCharges > 0) {
+                        Text(
+                            text = "Shields: $shieldCharges",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                    }
                 }
 
                 Text(
@@ -813,7 +1058,7 @@ private fun SubwayRunGame(
             elapsedMillis = elapsedMillis,
             score = score,
             scoreLabel = "Obstacles cleared",
-            playingHint = "Tap the lanes to weave past the sentry constructs.",
+            playingHint = "Tap the lanes to weave past the sentry constructs. Survive ${missionDuration / 1000} seconds.",
             defeatMessage = "A sentry construct cut you down.",
             lastResult = state.lastResult,
             selectedDifficulty = state.selectedDifficulty,
@@ -849,6 +1094,7 @@ private fun DoodleJumpGame(
     val behavior = definition.behavior
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
+    val powerUpCatalog = remember { jumpPowerUpCatalog() }
 
     var gamePhase by remember(definition.id + "_jump") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_jump") { mutableIntStateOf(0) }
@@ -856,10 +1102,25 @@ private fun DoodleJumpGame(
     var score by remember { mutableIntStateOf(0) }
     var heightClimbed by remember { mutableStateOf(0f) }
     val platforms = remember { mutableStateListOf<JumpPlatform>() }
+    val jumpPowerUps = remember { mutableStateListOf<JumpPowerUpSpawn>() }
+    val activeJumpEffects = remember { mutableStateListOf<ActiveJumpPowerUp>() }
+    var safetyNetCharges by remember { mutableIntStateOf(0) }
+    var scoreBonusOffset by remember { mutableIntStateOf(0) }
+    var recentBoost by remember { mutableStateOf<CollectedBoost?>(null) }
     var playerX by remember { mutableStateOf(0f) }
     var playerY by remember { mutableStateOf(0f) }
     var playerVelocityX by remember { mutableStateOf(0f) }
     var playerVelocityY by remember { mutableStateOf(0f) }
+    var pointerHorizontalImpulse by remember { mutableStateOf(0f) }
+    var lastJumpImpulse by remember { mutableStateOf(0f) }
+    var clockTick by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            clockTick = SystemClock.elapsedRealtime()
+            delay(250)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -884,69 +1145,108 @@ private fun DoodleJumpGame(
             val platformHeight = with(density) { 14.dp.toPx() }
             val platformCount = difficulty.jumpPlatformCount()
             val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 650
-            val requiredScore = kotlin.math.max(
-                300,
+            val requiredScore = max(
+                180,
                 (baseTarget * difficulty.jumpScoreMultiplier()).roundToInt()
             )
             val platformWidthScale = difficulty.jumpPlatformWidthScale()
+            val spacing = heightPx / (platformCount - 1)
+            val horizontalImpulseState = rememberUpdatedState(pointerHorizontalImpulse)
+
+            fun resetCourse() {
+                val random = Random(runId * 311 + 7)
+                platforms.clear()
+                repeat(platformCount) { index ->
+                    val y = heightPx - index * spacing
+                    platforms += generateJumpPlatform(
+                        widthPx = widthPx,
+                        y = y,
+                        seed = random.nextInt(),
+                        widthScale = platformWidthScale
+                    )
+                }
+                val radius = (avatarRadius * 0.72f).coerceAtLeast(avatarRadius * 0.55f)
+                val shuffledCatalog = powerUpCatalog.shuffled(random)
+                jumpPowerUps.clear()
+                jumpPowerUps += generateJumpPowerUpsForRun(
+                    catalog = shuffledCatalog,
+                    platforms = platforms,
+                    spacing = spacing,
+                    widthPx = widthPx,
+                    avatarRadius = radius,
+                    runSeed = runId
+                )
+                activeJumpEffects.clear()
+                safetyNetCharges = 0
+                scoreBonusOffset = 0
+                recentBoost = null
+                heightClimbed = 0f
+                score = 0
+                elapsedMillis = 0L
+                playerX = widthPx / 2f
+                playerY = heightPx * 0.32f
+                playerVelocityX = 0f
+                playerVelocityY = 0f
+                pointerHorizontalImpulse = (widthPx / 1.8f) * difficulty.jumpHorizontalScale()
+                lastJumpImpulse = -1350f * difficulty.jumpImpulseScale()
+            }
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
-                    val random = Random(runId * 311 + 7)
-                    val spacing = heightPx / (platformCount - 1)
-                    platforms.clear()
-                    repeat(platformCount) { index ->
-                        val y = heightPx - index * spacing
-                        platforms += generateJumpPlatform(
-                            widthPx = widthPx,
-                            y = y,
-                            seed = random.nextInt(),
-                            widthScale = platformWidthScale
-                        )
-                    }
-                    playerX = widthPx / 2f
-                    playerY = heightPx * 0.3f
-                    playerVelocityX = 0f
-                    playerVelocityY = 0f
-                    heightClimbed = 0f
-                    score = 0
+                    resetCourse()
                 }
             }
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) return@LaunchedEffect
                 val start = SystemClock.elapsedRealtime()
-                elapsedMillis = 0L
-                heightClimbed = 0f
-                score = 0
-                playerX = widthPx / 2f
-                playerY = heightPx * 0.35f
-                playerVelocityX = 0f
-                playerVelocityY = 0f
-                val gravity = 2100f * difficulty.jumpGravityScale()
-                val jumpImpulse = -1350f * difficulty.jumpImpulseScale()
-                val horizontalImpulse = (widthPx / 1.8f) * difficulty.jumpHorizontalScale()
-                val friction = 0.85f
-                val spacing = heightPx / (platformCount - 1)
+                val baseGravity = 1900f * difficulty.jumpGravityScale()
+                val baseJumpImpulse = -1250f * difficulty.jumpImpulseScale()
+                val baseHorizontalImpulse = (widthPx / 1.9f) * difficulty.jumpHorizontalScale()
+                val friction = 0.86f
                 var lastTime = start
+                var bestScore = 0
 
                 fun finishRound(didWin: Boolean) {
                     val elapsed = SystemClock.elapsedRealtime() - start
                     elapsedMillis = elapsed
-                    onSubmitResult(elapsed, didWin, score)
+                    score = bestScore
+                    onSubmitResult(elapsed, didWin, bestScore)
                     gamePhase = if (didWin) GamePhase.Victory else GamePhase.Defeat
                 }
+
+                playerX = widthPx / 2f
+                playerY = heightPx * 0.35f
+                playerVelocityX = 0f
+                playerVelocityY = 0f
+                heightClimbed = 0f
+                score = 0
+                scoreBonusOffset = 0
 
                 while (isActive && gamePhase == GamePhase.Playing) {
                     val now = SystemClock.elapsedRealtime()
                     val deltaMillis = (now - lastTime).coerceAtMost(48L)
-                    val deltaSeconds = deltaMillis / 1000f
                     lastTime = now
+
+                    activeJumpEffects.removeAll { it.expiresAt != Long.MAX_VALUE && now > it.expiresAt }
+                    if (recentBoost?.expiresAt?.let { now > it } == true) {
+                        recentBoost = null
+                    }
+
+                    val aggregate = activeJumpEffects.aggregateJumpEffects()
+                    val adjustedDeltaSeconds = (deltaMillis / 1000f) * aggregate.timeScale
+                    val gravity = baseGravity * aggregate.gravityMultiplier
+                    val jumpImpulse = baseJumpImpulse * aggregate.jumpImpulseMultiplier
+                    val horizontalImpulse = baseHorizontalImpulse * aggregate.horizontalImpulseMultiplier
+                    lastJumpImpulse = jumpImpulse
+                    pointerHorizontalImpulse = horizontalImpulse
+
                     elapsedMillis = now - start
 
-                    playerVelocityY += gravity * deltaSeconds
-                    playerY += playerVelocityY * deltaSeconds
-                    playerX += playerVelocityX * deltaSeconds
+                    playerVelocityY += gravity * adjustedDeltaSeconds
+                    playerY += playerVelocityY * adjustedDeltaSeconds
+
+                    playerX += playerVelocityX * adjustedDeltaSeconds
                     playerVelocityX *= friction
 
                     if (playerX < avatarRadius) {
@@ -957,16 +1257,19 @@ private fun DoodleJumpGame(
                         playerVelocityX = 0f
                     }
 
+                    val widthBoost = aggregate.platformWidthMultiplier
+
                     if (playerVelocityY > 0f) {
                         for (index in platforms.indices) {
                             val platform = platforms[index]
-                            val platformTop = platform.y
-                            val overlapX = playerX + avatarRadius > platform.x &&
-                                playerX - avatarRadius < platform.x + platform.width
-                            val overlapY = playerY + avatarRadius >= platformTop &&
-                                playerY + avatarRadius <= platformTop + platformHeight
+                            val actualWidth = platform.width * widthBoost
+                            val left = platform.x + (platform.width - actualWidth) / 2f
+                            val right = left + actualWidth
+                            val top = platform.y
+                            val overlapX = playerX + avatarRadius > left && playerX - avatarRadius < right
+                            val overlapY = playerY + avatarRadius >= top && playerY + avatarRadius <= top + platformHeight
                             if (overlapX && overlapY) {
-                                playerY = platformTop - avatarRadius
+                                playerY = top - avatarRadius
                                 playerVelocityY = jumpImpulse
                                 break
                             }
@@ -980,6 +1283,10 @@ private fun DoodleJumpGame(
                         for (index in platforms.indices) {
                             val platform = platforms[index]
                             platforms[index] = platform.copy(y = platform.y + shift)
+                        }
+                        for (index in jumpPowerUps.indices) {
+                            val spawn = jumpPowerUps[index]
+                            jumpPowerUps[index] = spawn.copy(y = spawn.y + shift)
                         }
                     }
 
@@ -997,7 +1304,40 @@ private fun DoodleJumpGame(
                         }
                     }
 
-                    score = kotlin.math.max(score, (heightClimbed / 12f).toInt())
+                    for (index in jumpPowerUps.indices) {
+                        val spawn = jumpPowerUps[index]
+                        if (spawn.collected) continue
+                        val dx = playerX - spawn.x
+                        val dy = playerY - spawn.y
+                        val distance = hypot(dx, dy)
+                        if (distance <= avatarRadius + spawn.radius) {
+                            jumpPowerUps[index] = spawn.copy(collected = true)
+                            val collectedAt = SystemClock.elapsedRealtime()
+                            if (spawn.definition.hasContinuousEffect()) {
+                                val expiresAt = if (spawn.definition.durationMillis == null) {
+                                    Long.MAX_VALUE
+                                } else {
+                                    collectedAt + spawn.definition.durationMillis
+                                }
+                                activeJumpEffects += ActiveJumpPowerUp(spawn.definition, expiresAt)
+                            }
+                            if (spawn.definition.safetyNetCharges > 0) {
+                                safetyNetCharges += spawn.definition.safetyNetCharges
+                            }
+                            if (spawn.definition.scoreBonus != 0) {
+                                scoreBonusOffset += spawn.definition.scoreBonus
+                            }
+                            recentBoost = CollectedBoost(spawn.definition.name, collectedAt + 3200L)
+                        }
+                    }
+
+                    val climbScore = (heightClimbed / 11.5f).roundToInt()
+                    val scaledScore = (climbScore * aggregate.scoreMultiplier).roundToInt()
+                    val totalScore = max(bestScore, scaledScore + scoreBonusOffset)
+                    if (totalScore > score) {
+                        score = totalScore
+                    }
+                    bestScore = max(bestScore, totalScore)
 
                     if (score >= requiredScore) {
                         finishRound(true)
@@ -1005,8 +1345,16 @@ private fun DoodleJumpGame(
                     }
 
                     if (playerY - avatarRadius > heightPx) {
-                        finishRound(false)
-                        break
+                        if (safetyNetCharges > 0) {
+                            safetyNetCharges -= 1
+                            playerY = heightPx * 0.45f
+                            playerVelocityY = jumpImpulse
+                            playerVelocityX = 0f
+                            recentBoost = CollectedBoost("Safety net engaged", now + 2000L)
+                        } else {
+                            finishRound(false)
+                            break
+                        }
                     }
 
                     delay(16)
@@ -1019,16 +1367,17 @@ private fun DoodleJumpGame(
                     .pointerInput(gamePhase, runId) {
                         detectTapGestures { tapOffset ->
                             if (gamePhase == GamePhase.Playing) {
-                                val horizontalImpulse = widthPx / 1.4f
+                                val impulse = horizontalImpulseState.value
                                 playerVelocityX = if (tapOffset.x < widthPx / 2f) {
-                                    -horizontalImpulse
+                                    -impulse
                                 } else {
-                                    horizontalImpulse
+                                    impulse
                                 }
                             }
                         }
                     }
             ) {
+                val widthBoostForDrawing = activeJumpEffects.aggregateJumpEffects().platformWidthMultiplier
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val background = Brush.verticalGradient(
                         colors = listOf(
@@ -1039,23 +1388,76 @@ private fun DoodleJumpGame(
                     drawRect(brush = background, size = size)
 
                     platforms.forEach { platform ->
+                        val actualWidth = platform.width * widthBoostForDrawing
+                        val left = platform.x + (platform.width - actualWidth) / 2f
                         drawRoundRect(
                             color = Color(0xFF7C4DFF),
-                            topLeft = Offset(platform.x, platform.y),
-                            size = Size(platform.width, platformHeight),
+                            topLeft = Offset(left, platform.y),
+                            size = Size(actualWidth, platformHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
                         )
                     }
 
-                      drawSkillGlyph(
-                          attributeType = AttributeType.FOCUS,
-                          center = Offset(playerX, playerY),
-                          radius = avatarRadius
-                      )
+                    jumpPowerUps.forEach { spawn ->
+                        if (!spawn.collected) {
+                            drawCircle(
+                                color = spawn.definition.color,
+                                radius = spawn.radius,
+                                center = Offset(spawn.x, spawn.y)
+                            )
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.35f),
+                                radius = spawn.radius * 0.45f,
+                                center = Offset(spawn.x, spawn.y)
+                            )
+                        }
+                    }
+
+                    drawSkillGlyph(
+                        attributeType = AttributeType.FOCUS,
+                        center = Offset(playerX, playerY),
+                        radius = avatarRadius
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    recentBoost?.let {
+                        Text(
+                            text = "Boon: ${it.name}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                    }
+                    val activeLabels = activeJumpEffects.takeIf { it.isNotEmpty() }?.map { effect ->
+                        val remaining =
+                            if (effect.expiresAt == Long.MAX_VALUE) null
+                            else ((effect.expiresAt - clockTick).coerceAtLeast(0L) / 1000f)
+                        if (remaining == null) effect.definition.name
+                        else "${effect.definition.name} ${"%.1f".format(remaining)}s"
+                    }.orEmpty()
+                    if (activeLabels.isNotEmpty()) {
+                        Text(
+                            text = activeLabels.joinToString(separator = "\n"),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                    if (safetyNetCharges > 0) {
+                        Text(
+                            text = "Safety nets: $safetyNetCharges",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                    }
                 }
 
                 Text(
-                    text = "${score}",
+                    text = "$score / $requiredScore",
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White,
                     modifier = Modifier
@@ -1070,8 +1472,8 @@ private fun DoodleJumpGame(
             definition = definition,
             elapsedMillis = elapsedMillis,
             score = score,
-            scoreLabel = "Height reached",
-            playingHint = "Tap left or right to guide each leap. Keep climbing the shifting pillars.",
+            scoreLabel = "Height reached (goal $requiredScore)",
+            playingHint = "Tap left or right to guide each leap. Gather runes and reach $requiredScore focus.",
             defeatMessage = "You tumbled into the depths.",
             lastResult = state.lastResult,
             selectedDifficulty = state.selectedDifficulty,
@@ -1299,8 +1701,13 @@ private fun ControlPanel(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         val attributeLabel = definition.attributeReward.name.lowercase().replaceFirstChar { it.titlecase() }
+        val rewardLabel = if (selectedDifficulty == Difficulty.LEGENDARY) {
+            "universal skill points"
+        } else {
+            "$attributeLabel sigils"
+        }
         Text(
-            text = "Difficulty: ${selectedDifficulty.displayName} • Reward ${selectedDifficulty.skillPointReward} $attributeLabel sigils",
+            text = "Difficulty: ${selectedDifficulty.displayName} • Reward ${selectedDifficulty.skillPointReward} $rewardLabel",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground
         )
@@ -1333,7 +1740,7 @@ private fun ControlPanel(
                     }
                 }
                 Text(
-                    text = "Victory yields ${selectedDifficulty.skillPointReward} $attributeLabel sigils.",
+                    text = "Victory yields ${selectedDifficulty.skillPointReward} $rewardLabel.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                 )
@@ -1417,7 +1824,19 @@ private fun VictoryPanel(
             val subtitle = when (lastResult) {
                 is TrainingGameResult.Victory -> {
                     val attributeLabel = lastResult.attributeType.name.lowercase().replaceFirstChar { it.titlecase() }
-                    "Attribute +${lastResult.attributeGain} $attributeLabel • XP +${lastResult.experienceGain} • ${lastResult.variantSkillPointGain} $attributeLabel sigils (${lastResult.difficulty.displayName})"
+                    val rewardParts = buildList {
+                        add("Attribute +${lastResult.attributeGain} $attributeLabel")
+                        if (lastResult.experienceGain > 0) {
+                            add("XP +${lastResult.experienceGain}")
+                        }
+                        if (lastResult.variantSkillPointGain > 0) {
+                            add("${lastResult.variantSkillPointGain} $attributeLabel sigils")
+                        }
+                        if (lastResult.generalSkillPointGain > 0) {
+                            add("${lastResult.generalSkillPointGain} universal skill points")
+                        }
+                    }
+                    "${rewardParts.joinToString(separator = " • ")} (${lastResult.difficulty.displayName})"
                 }
                 else -> "Attribute boost and experience gained."
             }
@@ -1545,6 +1964,280 @@ private fun generateRunnerObstacle(
     )
 }
 
+private fun jumpPowerUpCatalog(): List<JumpPowerUpDefinition> = listOf(
+    JumpPowerUpDefinition(
+        id = 1,
+        name = "Featherfall Rune",
+        color = Color(0xFF9CDBFF),
+        durationMillis = 9_000,
+        gravityMultiplier = 0.65f,
+        timeScale = 0.85f
+    ),
+    JumpPowerUpDefinition(
+        id = 2,
+        name = "Springstep Sigil",
+        color = Color(0xFFFFC857),
+        durationMillis = 8_000,
+        jumpImpulseMultiplier = 1.45f,
+        scoreMultiplier = 1.15f
+    ),
+    JumpPowerUpDefinition(
+        id = 3,
+        name = "Windlash Charm",
+        color = Color(0xFF6EE7B7),
+        durationMillis = 7_000,
+        horizontalImpulseMultiplier = 1.6f
+    ),
+    JumpPowerUpDefinition(
+        id = 4,
+        name = "Beacon Glyph",
+        color = Color(0xFFB5A5FF),
+        durationMillis = 9_500,
+        platformWidthMultiplier = 1.35f,
+        scoreMultiplier = 1.1f
+    ),
+    JumpPowerUpDefinition(
+        id = 5,
+        name = "Chronicle Bloom",
+        color = Color(0xFFFFA1CF),
+        durationMillis = 7_500,
+        timeScale = 0.78f,
+        scoreMultiplier = 1.3f
+    ),
+    JumpPowerUpDefinition(
+        id = 6,
+        name = "Mirage Veil",
+        color = Color(0xFF34D399),
+        safetyNetCharges = 1
+    ),
+    JumpPowerUpDefinition(
+        id = 7,
+        name = "Oracle's Insight",
+        color = Color(0xFFFB7185),
+        scoreBonus = 120
+    ),
+    JumpPowerUpDefinition(
+        id = 8,
+        name = "Echo Step",
+        color = Color(0xFF38BDF8),
+        durationMillis = 6_500,
+        jumpImpulseMultiplier = 1.25f,
+        horizontalImpulseMultiplier = 1.3f
+    ),
+    JumpPowerUpDefinition(
+        id = 9,
+        name = "Aether Coil",
+        color = Color(0xFF818CF8),
+        durationMillis = 8_000,
+        gravityMultiplier = 0.8f,
+        platformWidthMultiplier = 1.18f
+    ),
+    JumpPowerUpDefinition(
+        id = 10,
+        name = "Focus Tether",
+        color = Color(0xFFFACC15),
+        durationMillis = 7_200,
+        scoreMultiplier = 1.25f,
+        safetyNetCharges = 1
+    )
+)
+
+private fun JumpPowerUpDefinition.hasContinuousEffect(): Boolean {
+    if (durationMillis == null) return false
+    return jumpImpulseMultiplier != 1f ||
+        gravityMultiplier != 1f ||
+        horizontalImpulseMultiplier != 1f ||
+        platformWidthMultiplier != 1f ||
+        timeScale != 1f ||
+        scoreMultiplier != 1f
+}
+
+private fun Collection<ActiveJumpPowerUp>.aggregateJumpEffects(): JumpEffectAggregate {
+    if (isEmpty()) return JumpEffectAggregate()
+    var jump = 1f
+    var gravity = 1f
+    var horizontal = 1f
+    var width = 1f
+    var time = 1f
+    var score = 1f
+    for (effect in this) {
+        val definition = effect.definition
+        jump *= definition.jumpImpulseMultiplier
+        gravity *= definition.gravityMultiplier
+        horizontal *= definition.horizontalImpulseMultiplier
+        width *= definition.platformWidthMultiplier
+        time *= definition.timeScale
+        score *= definition.scoreMultiplier
+    }
+    return JumpEffectAggregate(
+        jumpImpulseMultiplier = jump,
+        gravityMultiplier = gravity,
+        horizontalImpulseMultiplier = horizontal,
+        platformWidthMultiplier = width,
+        timeScale = time,
+        scoreMultiplier = score
+    )
+}
+
+private fun generateJumpPowerUpsForRun(
+    catalog: List<JumpPowerUpDefinition>,
+    platforms: List<JumpPlatform>,
+    spacing: Float,
+    widthPx: Float,
+    avatarRadius: Float,
+    runSeed: Int
+): List<JumpPowerUpSpawn> {
+    if (catalog.isEmpty() || platforms.isEmpty()) return emptyList()
+    val random = Random(runSeed * 8101 + 17)
+    return catalog.mapIndexed { index, definition ->
+        val platform = platforms[index % platforms.size]
+        val band = index / platforms.size
+        val verticalOffset = spacing * (band + 0.65f)
+        val jitter = random.nextDouble(-platform.width * 0.25, platform.width * 0.25).toFloat()
+        val baseX = platform.x + platform.width / 2f + jitter
+        val x = baseX.coerceIn(avatarRadius, widthPx - avatarRadius)
+        val y = platform.y - verticalOffset
+        JumpPowerUpSpawn(
+            definition = definition,
+            x = x,
+            y = y,
+            radius = avatarRadius * 0.7f
+        )
+    }
+}
+
+private fun runnerPowerUpCatalog(): List<RunnerPowerUpDefinition> = listOf(
+    RunnerPowerUpDefinition(
+        id = 1,
+        name = "Aegis Core",
+        color = Color(0xFF60A5FA),
+        shieldCharges = 1
+    ),
+    RunnerPowerUpDefinition(
+        id = 2,
+        name = "Phase Thread",
+        color = Color(0xFF14B8A6),
+        durationMillis = 8_000,
+        hitboxMultiplier = 0.7f
+    ),
+    RunnerPowerUpDefinition(
+        id = 3,
+        name = "Temporal Anchor",
+        color = Color(0xFFF472B6),
+        durationMillis = 7_000,
+        timeScale = 0.72f
+    ),
+    RunnerPowerUpDefinition(
+        id = 4,
+        name = "Stride Ember",
+        color = Color(0xFFF97316),
+        durationMillis = 6_500,
+        speedMultiplier = 1.12f,
+        scoreMultiplier = 1.2f
+    ),
+    RunnerPowerUpDefinition(
+        id = 5,
+        name = "Siphon Pulse",
+        color = Color(0xFF8B5CF6),
+        durationMillis = 7_500,
+        spawnSpacingMultiplier = 1.35f
+    ),
+    RunnerPowerUpDefinition(
+        id = 6,
+        name = "Sentinel Jam",
+        color = Color(0xFF0EA5E9),
+        scoreBonus = 3
+    ),
+    RunnerPowerUpDefinition(
+        id = 7,
+        name = "Lumen Beacon",
+        color = Color(0xFFF59E0B),
+        durationMillis = 6_000,
+        timeScale = 0.8f,
+        hitboxMultiplier = 0.85f
+    ),
+    RunnerPowerUpDefinition(
+        id = 8,
+        name = "Momentum Surge",
+        color = Color(0xFF4ADE80),
+        durationMillis = 7_000,
+        speedMultiplier = 0.85f
+    ),
+    RunnerPowerUpDefinition(
+        id = 9,
+        name = "Pulse Resonator",
+        color = Color(0xFFEC4899),
+        durationMillis = 6_000,
+        scoreMultiplier = 1.5f
+    ),
+    RunnerPowerUpDefinition(
+        id = 10,
+        name = "Bulwark Ring",
+        color = Color(0xFF38BDF8),
+        durationMillis = 8_000,
+        hitboxMultiplier = 0.8f,
+        shieldCharges = 1
+    )
+)
+
+private fun RunnerPowerUpDefinition.hasContinuousEffect(): Boolean {
+    if (durationMillis == null) return false
+    return speedMultiplier != 1f ||
+        spawnSpacingMultiplier != 1f ||
+        hitboxMultiplier != 1f ||
+        timeScale != 1f ||
+        scoreMultiplier != 1f
+}
+
+private fun Collection<ActiveRunnerPowerUp>.aggregateRunnerEffects(): RunnerEffectAggregate {
+    if (isEmpty()) return RunnerEffectAggregate()
+    var speed = 1f
+    var spacing = 1f
+    var hitbox = 1f
+    var time = 1f
+    var score = 1f
+    for (effect in this) {
+        val definition = effect.definition
+        speed *= definition.speedMultiplier
+        spacing *= definition.spawnSpacingMultiplier
+        hitbox *= definition.hitboxMultiplier
+        time *= definition.timeScale
+        score *= definition.scoreMultiplier
+    }
+    return RunnerEffectAggregate(
+        speedMultiplier = speed,
+        spawnSpacingMultiplier = spacing,
+        hitboxMultiplier = hitbox,
+        timeScale = time,
+        scoreMultiplier = score
+    )
+}
+
+private fun generateRunnerPowerUpsForRun(
+    catalog: List<RunnerPowerUpDefinition>,
+    laneCount: Int,
+    laneWidth: Float,
+    heightPx: Float,
+    runSeed: Int,
+    radius: Float
+): List<RunnerPowerUpSpawn> {
+    if (catalog.isEmpty()) return emptyList()
+    val random = Random(runSeed * 4703 + 23)
+    val spacing = heightPx * 0.55f
+    return catalog.mapIndexed { index, definition ->
+        val lane = random.nextInt(laneCount)
+        val offsetFactor = random.nextDouble(0.7, 1.25).toFloat()
+        val y = -spacing * (index + 1) * offsetFactor
+        RunnerPowerUpSpawn(
+            definition = definition,
+            lane = lane,
+            y = y,
+            radius = radius,
+            collected = false
+        )
+    }
+}
+
 private fun Difficulty.bugHuntDurationFactor(): Double = when (this) {
     Difficulty.EASY -> 1.45
     Difficulty.NORMAL -> 1.0
@@ -1588,38 +2281,45 @@ private fun Difficulty.bugStartRadiusScale(): Float = when (this) {
 }
 
 private fun Difficulty.flappySpeedScale(): Float = when (this) {
-    Difficulty.EASY -> 0.72f
+    Difficulty.EASY -> 0.58f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 1.22f
-    Difficulty.LEGENDARY -> 1.36f
+    Difficulty.HARD -> 1.16f
+    Difficulty.LEGENDARY -> 1.28f
 }
 
 private fun Difficulty.flappyGapScale(): Float = when (this) {
-    Difficulty.EASY -> 1.35f
+    Difficulty.EASY -> 1.55f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.82f
-    Difficulty.LEGENDARY -> 0.68f
+    Difficulty.HARD -> 0.85f
+    Difficulty.LEGENDARY -> 0.72f
 }
 
 private fun Difficulty.flappySpacingFactor(): Float = when (this) {
-    Difficulty.EASY -> 1.35f
+    Difficulty.EASY -> 1.55f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.88f
-    Difficulty.LEGENDARY -> 0.78f
+    Difficulty.HARD -> 0.9f
+    Difficulty.LEGENDARY -> 0.8f
 }
 
 private fun Difficulty.flappyDurationFactor(): Double = when (this) {
-    Difficulty.EASY -> 1.35
+    Difficulty.EASY -> 1.05
     Difficulty.NORMAL -> 1.0
-    Difficulty.HARD -> 1.15
-    Difficulty.LEGENDARY -> 1.28
+    Difficulty.HARD -> 1.08
+    Difficulty.LEGENDARY -> 1.18
 }
 
 private fun Difficulty.flappyRadiusScale(): Float = when (this) {
-    Difficulty.EASY -> 1.12f
+    Difficulty.EASY -> 1.2f
     Difficulty.NORMAL -> 1.0f
     Difficulty.HARD -> 0.9f
     Difficulty.LEGENDARY -> 0.82f
+}
+
+private fun Difficulty.flappyVictoryTarget(): Int = when (this) {
+    Difficulty.EASY -> 6
+    Difficulty.NORMAL -> 9
+    Difficulty.HARD -> 12
+    Difficulty.LEGENDARY -> 15
 }
 
 private fun Difficulty.runnerSpeedScale(): Float = when (this) {

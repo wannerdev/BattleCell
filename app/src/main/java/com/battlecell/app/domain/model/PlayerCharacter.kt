@@ -86,6 +86,14 @@ data class PlayerCharacter(
             updatedAtEpoch = System.currentTimeMillis()
         )
 
+    fun addSkillPoints(amount: Int): PlayerCharacter {
+        if (amount <= 0) return this
+        return copy(
+            skillPoints = skillPoints + amount,
+            updatedAtEpoch = System.currentTimeMillis()
+        )
+    }
+
     fun addVariantSkillPoints(type: AttributeType, amount: Int): PlayerCharacter {
         if (amount <= 0) return this
         return copy(
