@@ -138,11 +138,13 @@ private fun BattleContent(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ParticipantCard(
+                modifier = Modifier.weight(1f),
                 title = "Your Hero",
                 character = uiState.player!!,
                 isPlayer = true
             )
             ParticipantCard(
+                modifier = Modifier.weight(1f),
                 title = uiState.opponent!!.displayName,
                 character = uiState.opponent,
                 isPlayer = false
@@ -183,12 +185,13 @@ private fun BattleContent(
 
 @Composable
 private fun ParticipantCard(
+    modifier: Modifier = Modifier,
     title: String,
     character: PlayerCharacter,
     isPlayer: Boolean
 ) {
     Card(
-        modifier = Modifier.weight(1f),
+        modifier = modifier,
         colors = CardDefaults.cardColors(
             containerColor = if (isPlayer) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             else MaterialTheme.colorScheme.surfaceVariant
@@ -225,12 +228,13 @@ private fun ParticipantCard(
 
 @Composable
 private fun ParticipantCard(
+    modifier: Modifier = Modifier,
     title: String,
     character: EncounterProfile,
     isPlayer: Boolean
 ) {
     Card(
-        modifier = Modifier.weight(1f),
+        modifier = modifier,
         colors = CardDefaults.cardColors(
             containerColor = if (isPlayer) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             else MaterialTheme.colorScheme.surfaceVariant
