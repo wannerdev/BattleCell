@@ -104,26 +104,30 @@ fun ProfileRoute(
                 AttributeAllocationCard(
                     title = stringResource(id = R.string.profile_power_label),
                     value = character.attributes.power,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.POWER) },
-                    enabled = character.skillPoints > 0
+                    trainingPoints = character.variantSkillPoints(AttributeType.POWER),
+                    generalPoints = character.skillPoints,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.POWER) }
                 )
                 AttributeAllocationCard(
                     title = stringResource(id = R.string.profile_agility_label),
                     value = character.attributes.agility,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.AGILITY) },
-                    enabled = character.skillPoints > 0
+                    trainingPoints = character.variantSkillPoints(AttributeType.AGILITY),
+                    generalPoints = character.skillPoints,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.AGILITY) }
                 )
                 AttributeAllocationCard(
                     title = stringResource(id = R.string.profile_endurance_label),
                     value = character.attributes.endurance,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.ENDURANCE) },
-                    enabled = character.skillPoints > 0
+                    trainingPoints = character.variantSkillPoints(AttributeType.ENDURANCE),
+                    generalPoints = character.skillPoints,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.ENDURANCE) }
                 )
                 AttributeAllocationCard(
                     title = stringResource(id = R.string.profile_focus_label),
                     value = character.attributes.focus,
-                    onAllocate = { viewModel.allocatePoint(AttributeType.FOCUS) },
-                    enabled = character.skillPoints > 0
+                    trainingPoints = character.variantSkillPoints(AttributeType.FOCUS),
+                    generalPoints = character.skillPoints,
+                    onAllocate = { viewModel.allocatePoint(AttributeType.FOCUS) }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -146,9 +150,11 @@ fun ProfileRoute(
 private fun AttributeAllocationCard(
     title: String,
     value: Int,
-    enabled: Boolean,
+    trainingPoints: Int,
+    generalPoints: Int,
     onAllocate: () -> Unit
 ) {
+    val canAllocate = trainingPoints + generalPoints > 0
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -174,10 +180,19 @@ private fun AttributeAllocationCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text(
+                    text = stringResource(
+                        id = R.string.profile_training_points_label,
+                        trainingPoints,
+                        generalPoints
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             Button(
                 onClick = onAllocate,
-                enabled = enabled,
+                enabled = canAllocate,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {

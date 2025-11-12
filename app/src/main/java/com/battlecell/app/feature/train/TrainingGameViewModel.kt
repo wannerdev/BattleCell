@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.battlecell.app.data.repository.PlayerRepository
 import com.battlecell.app.domain.model.AttributeType
+import com.battlecell.app.domain.model.Difficulty
 import com.battlecell.app.domain.model.TrainingGameDefinition
 import com.battlecell.app.domain.model.TrainingGameType
 import com.battlecell.app.domain.usecase.GetTrainingGamesUseCase
@@ -18,7 +19,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 class TrainingGameViewModel(
@@ -29,6 +29,7 @@ class TrainingGameViewModel(
 
     private val definitionFlow = MutableStateFlow<TrainingGameDefinition?>(null)
     private val resultFlow = MutableStateFlow<TrainingGameResult?>(null)
+    private val selectedDifficultyFlow = MutableStateFlow(Difficulty.EASY)
     private val eventsChannel = Channel<TrainingGameEvent>(Channel.BUFFERED)
 
     val events = eventsChannel.receiveAsFlow()
@@ -36,13 +37,15 @@ class TrainingGameViewModel(
     val uiState: StateFlow<TrainingGameUiState> = combine(
         playerRepository.playerStream,
         definitionFlow,
-        resultFlow
-    ) { player, definition, result ->
+        resultFlow,
+        selectedDifficultyFlow
+    ) { player, definition, result, difficulty ->
         TrainingGameUiState(
             definition = definition,
             character = player,
             lastResult = result,
-            isSaving = false
+            isSaving = false,
+            selectedDifficulty = difficulty
         )
     }.stateIn(
         scope = viewModelScope,
@@ -53,6 +56,7 @@ class TrainingGameViewModel(
     init {
         val definition = getTrainingGamesUseCase().firstOrNull { it.id == gameId }
         definitionFlow.value = definition
+        selectedDifficultyFlow.value = definition?.difficulty ?: Difficulty.EASY
         if (definition == null) {
             viewModelScope.launch {
                 eventsChannel.send(TrainingGameEvent.Error("Unknown training scenario."))
@@ -64,12 +68,17 @@ class TrainingGameViewModel(
         resultFlow.value = null
     }
 
+    fun setDifficulty(difficulty: Difficulty) {
+        selectedDifficultyFlow.value = difficulty
+    }
+
     fun recordOutcome(
         elapsedMillis: Long,
         didWin: Boolean,
         score: Int = 0
     ) {
         val definition = definitionFlow.value ?: return
+        val difficulty = selectedDifficultyFlow.value
         viewModelScope.launch {
             val player = playerRepository.playerStream.first() ?: run {
                 eventsChannel.send(TrainingGameEvent.Error("Create a hero before training."))
@@ -83,8 +92,9 @@ class TrainingGameViewModel(
                 return@launch
             }
 
-            val experienceGain = computeExperience(definition, elapsedMillis, score, didWin)
-            val attributeGain = computeAttributeGain(definition, elapsedMillis, score, didWin)
+            val experienceGain = computeExperience(definition, elapsedMillis, score, didWin, difficulty)
+            val attributeGain = computeAttributeGain(definition, elapsedMillis, score, didWin, difficulty)
+            val variantPoints = if (didWin) difficulty.skillPointReward else 0
 
             var updated = player
                 .gainExperience(experienceGain)
@@ -92,16 +102,18 @@ class TrainingGameViewModel(
                     attrs.increase(definition.attributeReward, attributeGain)
                 }
 
-            updated = updated.copy(
-                skillPoints = updated.skillPoints + computeSkillPointBonus(definition, elapsedMillis, score, didWin)
-            )
+            if (variantPoints > 0) {
+                updated = updated.addVariantSkillPoints(definition.attributeReward, variantPoints)
+            }
 
             playerRepository.upsert(updated)
 
             val result = TrainingGameResult.Victory(
                 attributeGain = attributeGain,
                 experienceGain = experienceGain,
-                attributeType = definition.attributeReward
+                attributeType = definition.attributeReward,
+                variantSkillPointGain = variantPoints,
+                difficulty = difficulty
             )
             resultFlow.value = result
             eventsChannel.send(TrainingGameEvent.Victory(result))
@@ -112,10 +124,11 @@ class TrainingGameViewModel(
         definition: TrainingGameDefinition,
         elapsedMillis: Long,
         score: Int,
-        didWin: Boolean
+        didWin: Boolean,
+        difficulty: Difficulty
     ): Int {
-        val base = definition.displayReward
-        return when (definition.gameType) {
+        val base = definition.baseReward
+        val raw = when (definition.gameType) {
             TrainingGameType.BUG_HUNT -> {
                 if (definition.behavior.flickerEnabled) {
                     val bonus = max(0, (definition.behavior.totalDurationMillis - elapsedMillis).toInt())
@@ -142,15 +155,17 @@ class TrainingGameViewModel(
                 base + runtimeBonus + if (didWin) base / 5 else 0
             }
         }
+        return (raw * difficulty.experienceFactor()).roundToInt()
     }
 
     private fun computeAttributeGain(
         definition: TrainingGameDefinition,
         elapsedMillis: Long,
         score: Int,
-        didWin: Boolean
+        didWin: Boolean,
+        difficulty: Difficulty
     ): Int {
-        return when (definition.gameType) {
+        val raw = when (definition.gameType) {
             TrainingGameType.BUG_HUNT -> {
                 if (definition.behavior.flickerEnabled) {
                     val remaining = max(0L, definition.behavior.totalDurationMillis.toLong() - elapsedMillis)
@@ -178,39 +193,7 @@ class TrainingGameViewModel(
                 max(1, stamina.toInt() + if (didWin) 1 else 0)
             }
         }
-    }
-
-    private fun computeSkillPointBonus(
-        definition: TrainingGameDefinition,
-        elapsedMillis: Long,
-        score: Int,
-        didWin: Boolean
-    ): Int {
-        return when (definition.gameType) {
-            TrainingGameType.BUG_HUNT -> {
-                if (!definition.behavior.flickerEnabled) return 0
-                val remaining = max(0L, definition.behavior.totalDurationMillis.toLong() - elapsedMillis)
-                min(2, (remaining / 1500L).toInt())
-            }
-
-            TrainingGameType.FLAPPY_FLIGHT -> {
-                val duration = definition.behavior.totalDurationMillis.takeIf { it > 0 } ?: 45000
-                if (didWin && elapsedMillis >= duration * 0.8f) 1 else 0
-            }
-
-            TrainingGameType.DOODLE_JUMP -> {
-                val target = definition.behavior.targetScore.takeIf { it > 0 } ?: 600
-                when {
-                    score >= target -> 2
-                    score >= (target * 0.7f).toInt() -> 1
-                    else -> 0
-                }
-            }
-
-            TrainingGameType.SUBWAY_RUN -> {
-                min(2, (elapsedMillis / 30000L).toInt())
-            }
-        }
+        return max(1, (raw * difficulty.attributeFactor()).roundToInt())
     }
 
     companion object {
@@ -231,18 +214,35 @@ class TrainingGameViewModel(
     }
 }
 
+private fun Difficulty.experienceFactor(): Double = when (this) {
+    Difficulty.EASY -> 1.0
+    Difficulty.NORMAL -> 1.25
+    Difficulty.HARD -> 1.6
+    Difficulty.LEGENDARY -> 2.1
+}
+
+private fun Difficulty.attributeFactor(): Double = when (this) {
+    Difficulty.EASY -> 1.0
+    Difficulty.NORMAL -> 1.15
+    Difficulty.HARD -> 1.4
+    Difficulty.LEGENDARY -> 1.75
+}
+
 data class TrainingGameUiState(
     val definition: TrainingGameDefinition? = null,
     val character: com.battlecell.app.domain.model.PlayerCharacter? = null,
     val lastResult: TrainingGameResult? = null,
-    val isSaving: Boolean = true
+    val isSaving: Boolean = true,
+    val selectedDifficulty: Difficulty = Difficulty.EASY
 )
 
 sealed interface TrainingGameResult {
     data class Victory(
         val attributeGain: Int,
         val experienceGain: Int,
-        val attributeType: AttributeType
+        val attributeType: AttributeType,
+        val variantSkillPointGain: Int,
+        val difficulty: Difficulty
     ) : TrainingGameResult
 
     data object Defeat : TrainingGameResult

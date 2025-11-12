@@ -2,10 +2,10 @@ package com.battlecell.app.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.SportsKabaddi
+import androidx.compose.material.icons.filled.SportsMartialArts
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -182,16 +182,16 @@ private fun BattleCellBottomBar(
     NavigationBar {
         appState.topLevelDestinations.forEach { destination ->
             val label = when (destination) {
-                BattleCellDestination.Home -> "Home"
-                BattleCellDestination.Training -> "Training"
-                BattleCellDestination.Search -> "Search"
-                BattleCellDestination.Profile -> "Profile"
+                BattleCellDestination.Home -> "Hall"
+                BattleCellDestination.Training -> "Trials"
+                BattleCellDestination.Search -> "Horn"
+                BattleCellDestination.Profile -> "Chronicle"
                 else -> destination.route
             }
             val icon = when (destination) {
                 BattleCellDestination.Home -> Icons.Default.Home
-                BattleCellDestination.Training -> Icons.Default.SportsEsports
-                BattleCellDestination.Search -> Icons.Default.SportsKabaddi
+                BattleCellDestination.Training -> Icons.Default.SportsMartialArts
+                BattleCellDestination.Search -> Icons.Default.BluetoothSearching
                 BattleCellDestination.Profile -> Icons.Default.Person
                 else -> Icons.Default.Home
             }

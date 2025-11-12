@@ -26,8 +26,10 @@ class NearbyDiscoveryManager(
         (appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
 
     suspend fun discover(timeoutMillis: Long = DEFAULT_TIMEOUT_MS): NearbyDiscoverySnapshot {
-        val wifiDevices = scanWifi(timeoutMillis)
         val bluetoothDevices = scanBluetooth(timeoutMillis)
+        val wifiDevices = scanWifi(timeoutMillis).ifEmpty {
+            synthesizeWifiFromBluetooth(bluetoothDevices)
+        }
         return NearbyDiscoverySnapshot(
             wifiDevices = wifiDevices,
             bluetoothDevices = bluetoothDevices
@@ -157,6 +159,19 @@ class NearbyDiscoveryManager(
             .distinctBy { it.address.lowercase(Locale.US) }
             .sortedByDescending { it.rssi }
     }
+
+    private fun synthesizeWifiFromBluetooth(
+        bluetoothDevices: List<BluetoothDeviceInfo>
+    ): List<WifiDeviceInfo> =
+        bluetoothDevices
+            .filter { it.address.isNotBlank() }
+            .map { device ->
+                WifiDeviceInfo(
+                    ssid = device.name,
+                    bssid = device.address.lowercase(Locale.US),
+                    signalLevel = device.rssi
+                )
+            }
 
     @SuppressLint("MissingPermission", "DeprecatedWifiInfo")
     private fun WifiManager.connectedAccessPoint(): WifiDeviceInfo? {

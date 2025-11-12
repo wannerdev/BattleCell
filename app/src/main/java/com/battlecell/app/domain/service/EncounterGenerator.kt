@@ -10,10 +10,10 @@ import kotlin.math.max
 
 class EncounterGenerator {
     private val adjectives = listOf(
-        "Shadow", "Iron", "Crimson", "Echo", "Static", "Silver", "Obsidian", "Nova", "Phantom", "Azure"
+        "Ironbound", "Gilded", "Duskworn", "Runed", "Verdant", "Ashen", "Stormforged", "Starborn", "Ember", "Grim"
     )
     private val nouns = listOf(
-        "Warden", "Blade", "Specter", "Hunter", "Sentinel", "Rogue", "Drifter", "Cipher", "Vanguard", "Revenant"
+        "Warden", "Blade", "Knight", "Harbinger", "Marshal", "Arcanist", "Ranger", "Chronicler", "Skald", "Revenant"
     )
 
     fun fromWifi(info: WifiDeviceInfo): EncounterProfile {
