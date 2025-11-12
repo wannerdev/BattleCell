@@ -78,11 +78,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 @Composable
@@ -1660,7 +1661,8 @@ private fun ControlPanel(
     onDifficultySelected: (Difficulty) -> Unit,
     onStart: () -> Unit,
     onRetry: () -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    extraContent: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1759,6 +1761,13 @@ private fun ControlPanel(
                     onRetry = onRetry,
                     onExit = onExit
                 )
+            }
+        }
+
+        if (phase == GamePhase.Idle) {
+            extraContent?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                it()
             }
         }
     }
