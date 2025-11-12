@@ -67,22 +67,8 @@ class SearchViewModel(
         toastMessage.value = null
     }
 
-    private fun synthesizeEncounters(snapshot: NearbyDiscoverySnapshot): List<EncounterProfile> {
+    internal fun synthesizeEncounters(snapshot: NearbyDiscoverySnapshot): List<EncounterProfile> {
         val existing = uiState.value.encounters.associateBy { it.deviceFingerprint }
-        val merged = mutableMapOf<String, EncounterProfile>()
-
-        snapshot.wifiDevices.forEach { device ->
-            val incoming = encounterGenerator.fromWifi(device)
-            val current = merged[incoming.deviceFingerprint] ?: existing[incoming.deviceFingerprint]
-            merged[incoming.deviceFingerprint] = encounterGenerator.merge(current, incoming)
-        }
-
-        snapshot.bluetoothDevices.forEach { device ->
-            val incoming = encounterGenerator.fromBluetooth(device)
-            val current = merged[incoming.deviceFingerprint] ?: existing[incoming.deviceFingerprint]
-            merged[incoming.deviceFingerprint] = encounterGenerator.merge(current, incoming)
-        }
-
-        return merged.values.sortedByDescending { it.powerScore }
+        return EncounterMerge.merge(existing, snapshot, encounterGenerator)
     }
 }

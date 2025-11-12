@@ -27,7 +27,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.battlecell.app.core.AppContainer
 import com.battlecell.app.core.BattleCellViewModelFactory
-import com.battlecell.app.feature.battle.BattlePlaceholder
+import com.battlecell.app.feature.battle.BattleRoute
+import com.battlecell.app.feature.battle.BattleViewModel
 import com.battlecell.app.feature.home.HomeRoute
 import com.battlecell.app.feature.onboarding.OnboardingRoute
 import com.battlecell.app.feature.profile.ProfileRoute
@@ -166,10 +167,20 @@ fun BattleCellApp(
                         nullable = true
                     }
                 )
-            ) { backStackEntry ->
-                val opponentId = backStackEntry.arguments?.getString(BattleCellDestination.Battle.ARG_OPPONENT_ID)
-                BattlePlaceholder(opponentId = opponentId)
-            }
+                ) { backStackEntry ->
+                    val opponentId = backStackEntry.arguments?.getString(BattleCellDestination.Battle.ARG_OPPONENT_ID)
+                    val viewModel = viewModel<BattleViewModel>(
+                        factory = BattleViewModel.provideFactory(
+                            playerRepository = appContainer.playerRepository,
+                            encounterRepository = appContainer.encounterRepository,
+                            opponentId = opponentId.orEmpty()
+                        )
+                    )
+                    BattleRoute(
+                        viewModel = viewModel,
+                        onExit = { appState.navigateBack() }
+                    )
+                }
         }
     }
 }

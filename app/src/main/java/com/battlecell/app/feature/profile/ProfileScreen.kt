@@ -85,6 +85,7 @@ fun ProfileRoute(
                             text = stringResource(
                                 id = R.string.profile_level_and_xp,
                                 character.level,
+                                character.statusPoints,
                                 character.experience,
                                 character.skillPoints
                             ),

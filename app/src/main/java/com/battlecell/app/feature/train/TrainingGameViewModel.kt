@@ -8,6 +8,7 @@ import com.battlecell.app.domain.model.AttributeType
 import com.battlecell.app.domain.model.Difficulty
 import com.battlecell.app.domain.model.TrainingGameDefinition
 import com.battlecell.app.domain.model.TrainingGameType
+import com.battlecell.app.domain.model.TrainingScoreEntry
 import com.battlecell.app.domain.usecase.GetTrainingGamesUseCase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -96,15 +97,32 @@ class TrainingGameViewModel(
             val attributeGain = computeAttributeGain(definition, elapsedMillis, score, didWin, difficulty)
             val variantPoints = if (didWin) difficulty.skillPointReward else 0
 
-            var updated = player
-                .gainExperience(experienceGain)
-                .updateAttributes { attrs ->
-                    attrs.increase(definition.attributeReward, attributeGain)
-                }
+              var updated = player
+                  .gainExperience(experienceGain)
+                  .updateAttributes { attrs ->
+                      attrs.increase(definition.attributeReward, attributeGain)
+                  }
 
-            if (variantPoints > 0) {
-                updated = updated.addVariantSkillPoints(definition.attributeReward, variantPoints)
-            }
+              if (variantPoints > 0) {
+                  updated = updated.addVariantSkillPoints(definition.attributeReward, variantPoints)
+              }
+
+              val entry = TrainingScoreEntry(
+                  score = score,
+                  elapsedMillis = elapsedMillis,
+                  achievedAtEpoch = System.currentTimeMillis()
+              )
+              val comparator: (TrainingScoreEntry, TrainingScoreEntry) -> Boolean =
+                  { old, new ->
+                      new.score > old.score ||
+                          (new.score == old.score && new.elapsedMillis < old.elapsedMillis)
+                  }
+              updated = updated.updateTrainingHighScore(
+                  gameId = definition.id,
+                  difficulty = difficulty,
+                  entry = entry,
+                  comparator = comparator
+              )
 
             playerRepository.upsert(updated)
 

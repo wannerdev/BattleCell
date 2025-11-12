@@ -10,43 +10,43 @@ class GetTrainingGamesUseCase {
 
     operator fun invoke(): List<TrainingGameDefinition> = listOf(
         TrainingGameDefinition(
-            id = "bug-hunt-sprint",
-            title = "Bug Hunt: Sprint",
-            description = "Catch the rogue nanobot before it reaches the reactor core.",
+            id = "gauntlet-drill",
+            title = "Gauntlet Drill",
+            description = "Clench the war-gauntlet around the ember sprite before it spirals into the keep's heartfire.",
             attributeReward = AttributeType.POWER,
             difficulty = Difficulty.EASY,
             baseReward = 50,
-            icon = "bug",
+            icon = "fist",
             gameType = TrainingGameType.BUG_HUNT,
             behavior = TrainingGameBehavior(
-                totalDurationMillis = 6000,
-                flickerEnabled = false,
-                bugRadiusDp = 32f
+                totalDurationMillis = 8500,
+                flickerEnabled = true,
+                bugRadiusDp = 34f
             )
         ),
         TrainingGameDefinition(
-            id = "winged-firewall",
-            title = "Winged Firewall",
-            description = "Guide the drone through security gaps without touching the electrified pylons.",
+            id = "falcon-wind-course",
+            title = "Falcon Wind Course",
+            description = "Guide the mews falcon through arrow slits and pennants without grazing the warded battlements.",
             attributeReward = AttributeType.AGILITY,
-            difficulty = Difficulty.NORMAL,
+            difficulty = Difficulty.EASY,
             baseReward = 70,
-            icon = "flappy",
+            icon = "falcon",
             gameType = TrainingGameType.FLAPPY_FLIGHT,
             behavior = TrainingGameBehavior(
-                totalDurationMillis = 45000,
+                totalDurationMillis = 52000,
                 flickerEnabled = false,
-                bugRadiusDp = 26f
+                bugRadiusDp = 28f
             )
         ),
         TrainingGameDefinition(
-            id = "quantum-pillar-ascent",
-            title = "Quantum Pillar Ascent",
-            description = "Bounce across shifting pillars and climb as high as you can before the abyss swallows you.",
+            id = "oracle-spire-ascent",
+            title = "Oracle's Spire Ascent",
+            description = "Leap from rune dais to rune dais and keep your gaze steady as the spire shudders beneath you.",
             attributeReward = AttributeType.FOCUS,
             difficulty = Difficulty.HARD,
             baseReward = 90,
-            icon = "doodle",
+            icon = "eye",
             gameType = TrainingGameType.DOODLE_JUMP,
             behavior = TrainingGameBehavior(
                 totalDurationMillis = 0,
@@ -55,16 +55,16 @@ class GetTrainingGamesUseCase {
             )
         ),
         TrainingGameDefinition(
-            id = "neon-rail-run",
-            title = "Neon Rail Run",
-            description = "Dash along the mag-lev rails, swap lanes, and avoid crashing security drones.",
+            id = "sentinel-rampart-run",
+            title = "Sentinel Rampart Run",
+            description = "Charge along the rampart lanes, shift shields, and outlast the tireless sentry constructs.",
             attributeReward = AttributeType.ENDURANCE,
             difficulty = Difficulty.NORMAL,
             baseReward = 80,
-            icon = "runner",
+            icon = "shield",
             gameType = TrainingGameType.SUBWAY_RUN,
             behavior = TrainingGameBehavior(
-                totalDurationMillis = 60000,
+                totalDurationMillis = 64000,
                 bugRadiusDp = 30f
             )
         )

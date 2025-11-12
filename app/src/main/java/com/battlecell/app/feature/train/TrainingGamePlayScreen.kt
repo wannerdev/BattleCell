@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -66,6 +67,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.battlecell.app.domain.model.AttributeType
 import com.battlecell.app.domain.model.Difficulty
 import com.battlecell.app.domain.model.TrainingGameDefinition
 import com.battlecell.app.domain.model.TrainingGameType
@@ -184,7 +186,7 @@ private fun BugHuntGame(
 
     val bugRadiusPx = with(density) { behavior.bugRadiusDp.dp.toPx() * difficulty.bugHuntRadiusScale() }
 
-    var startPosition by remember { mutableStateOf(Offset.Zero) }
+    var pathSeed by remember { mutableStateOf<SpiralSeed?>(null) }
 
     LaunchedEffect(gamePhase, runId) {
         if (gamePhase == GamePhase.Playing) {
@@ -226,12 +228,14 @@ private fun BugHuntGame(
     LaunchedEffect(gamePhase, runId, behavior.flickerEnabled) {
         bugVisible = true
         if (gamePhase == GamePhase.Playing && behavior.flickerEnabled) {
+            val visibleMillis = difficulty.bugVisibleMillis(behavior.visibleWindowMillis)
+            val hiddenMillis = difficulty.bugHiddenMillis(behavior.invisibleWindowMillis)
             while (isActive && gamePhase == GamePhase.Playing) {
                 bugVisible = true
-                delay(behavior.visibleWindowMillis)
+                delay(visibleMillis)
                 if (gamePhase != GamePhase.Playing) break
                 bugVisible = false
-                delay(behavior.invisibleWindowMillis)
+                delay(hiddenMillis)
             }
             bugVisible = true
         }
@@ -255,18 +259,29 @@ private fun BugHuntGame(
             val heightPx = with(density) { maxHeight.toPx() }
             val arenaCenter = Offset(widthPx / 2f, heightPx / 2f)
 
-            if (startPosition == Offset.Zero || gamePhase == GamePhase.Idle) {
-                startPosition = randomStartPosition(widthPx, heightPx, bugRadiusPx, runId)
-            }
+              if (pathSeed == null || gamePhase == GamePhase.Idle) {
+                  pathSeed = createSpiralSeed(
+                      widthPx = widthPx,
+                      heightPx = heightPx,
+                      bugRadiusPx = bugRadiusPx,
+                      runId = runId,
+                      difficulty = difficulty
+                  )
+              }
 
-            val currentBugPosition = lerp(startPosition, arenaCenter, progress.value)
-            val bugActiveState = rememberUpdatedState(gamePhase == GamePhase.Playing && bugVisible)
-            val bugPositionProviderState = rememberUpdatedState(
-                newValue = {
-                    val start = startPosition
-                    lerp(start, arenaCenter, progress.value)
-                }
-            )
+              val seed = pathSeed
+              val currentBugPosition = seed?.let { spiralPosition(it, arenaCenter, progress.value) } ?: arenaCenter
+              val bugActiveState = rememberUpdatedState(gamePhase == GamePhase.Playing && bugVisible)
+              val bugPositionProviderState = rememberUpdatedState(
+                  newValue = {
+                      val currentSeed = seed
+                      if (currentSeed == null) {
+                          arenaCenter
+                      } else {
+                          spiralPosition(currentSeed, arenaCenter, progress.value)
+                      }
+                  }
+              )
 
             Box(
                 modifier = Modifier
@@ -289,12 +304,12 @@ private fun BugHuntGame(
                         }
                     }
             ) {
-                BugHuntArena(
-                    bugVisible = bugVisible && gamePhase == GamePhase.Playing,
-                    bugPosition = currentBugPosition,
-                    bugRadiusPx = bugRadiusPx,
-                    center = arenaCenter
-                )
+                  BugHuntArena(
+                      bugVisible = bugVisible && gamePhase == GamePhase.Playing,
+                      bugPosition = currentBugPosition,
+                      bugRadiusPx = bugRadiusPx,
+                      center = arenaCenter
+                  )
             }
         }
 
@@ -313,14 +328,14 @@ private fun BugHuntGame(
                 bugVisible = true
                 onResetResult()
                 gamePhase = GamePhase.Playing
-                startPosition = Offset.Zero
+                  pathSeed = null
                 runId++
             },
             onRetry = {
                 bugVisible = true
                 onResetResult()
                 gamePhase = GamePhase.Idle
-                startPosition = Offset.Zero
+                  pathSeed = null
                 runId++
             },
             onExit = onExit
@@ -333,6 +348,12 @@ private data class FlappyPipe(
     val gapCenter: Float,
     val gapHeight: Float,
     val scored: Boolean
+)
+
+private data class SpiralSeed(
+    val initialAngle: Float,
+    val initialRadius: Float,
+    val rotations: Float
 )
 
 private data class JumpPlatform(
@@ -388,11 +409,15 @@ private fun FlappyFlightGame(
             val birdRadiusPx = with(density) {
                 (behavior.bugRadiusDp.takeIf { it > 0f } ?: 24f).dp.toPx() * difficulty.flappyRadiusScale()
             }
-            val birdX = widthPx * 0.28f
-            val pipeWidth = with(density) { 52.dp.toPx() }
-            val pipeSpacing = widthPx * (0.45f * difficulty.flappySpacingFactor())
-            val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
-            val gapFactor = difficulty.flappyGapScale()
+              val birdX = widthPx * 0.28f
+              val pipeWidth = with(density) { 52.dp.toPx() }
+              val pipeSpacing = widthPx * (0.45f * difficulty.flappySpacingFactor())
+              val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
+              val gapFactor = difficulty.flappyGapScale()
+              val speedScale = difficulty.flappySpeedScale()
+              val gravity = 1200f * speedScale
+              val flapImpulse = -520f * speedScale
+              val pipeSpeed = (widthPx / 2.8f) * speedScale
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
@@ -425,9 +450,6 @@ private fun FlappyFlightGame(
                     seed = runId * 1337 + 19,
                     gapFactor = gapFactor
                 )
-                val gravity = 1200f * difficulty.flappySpeedScale()
-                val flapImpulse = -520f * difficulty.flappySpeedScale()
-                val pipeSpeed = (widthPx / 2.6f) * difficulty.flappySpeedScale()
                 var localScore = 0
                 var lastTime = start
 
@@ -504,17 +526,17 @@ private fun FlappyFlightGame(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(gamePhase, runId) {
-                        detectTapGestures {
-                            if (gamePhase == GamePhase.Playing) {
-                                birdVelocity = -520f
-                            }
-                        }
-                    }
-            ) {
+              Box(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .pointerInput(gamePhase, runId) {
+                          detectTapGestures {
+                              if (gamePhase == GamePhase.Playing) {
+                                  birdVelocity = flapImpulse
+                              }
+                          }
+                      }
+              ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val background = Brush.verticalGradient(
                         colors = listOf(
@@ -544,21 +566,11 @@ private fun FlappyFlightGame(
                         }
                     }
 
-                    val birdBrush = Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFC107), Color(0xFFFF5722)),
-                        center = Offset(birdX, birdY),
-                        radius = birdRadiusPx * 1.3f
-                    )
-                    drawCircle(
-                        brush = birdBrush,
-                        radius = birdRadiusPx,
-                        center = Offset(birdX, birdY)
-                    )
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.75f),
-                        radius = birdRadiusPx / 4f,
-                        center = Offset(birdX + birdRadiusPx / 3f, birdY - birdRadiusPx / 3f)
-                    )
+                      drawSkillGlyph(
+                          attributeType = AttributeType.AGILITY,
+                          center = Offset(birdX, birdY),
+                          radius = birdRadiusPx
+                      )
                 }
 
                 Text(
@@ -777,21 +789,11 @@ private fun SubwayRunGame(
                     }
 
                     val playerCenterX = laneWidth * (playerLane + 0.5f)
-                    val avatarBrush = Brush.radialGradient(
-                        colors = listOf(Color(0xFF4CAF50), Color(0xFF1B5E20)),
-                        center = Offset(playerCenterX, playerY),
-                        radius = avatarRadius * 1.4f
-                    )
-                    drawCircle(
-                        brush = avatarBrush,
-                        radius = avatarRadius,
-                        center = Offset(playerCenterX, playerY)
-                    )
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.7f),
-                        radius = avatarRadius / 4f,
-                        center = Offset(playerCenterX + avatarRadius / 3f, playerY - avatarRadius / 3f)
-                    )
+                      drawSkillGlyph(
+                          attributeType = AttributeType.ENDURANCE,
+                          center = Offset(playerCenterX, playerY),
+                          radius = avatarRadius
+                      )
                 }
 
                 Text(
@@ -1045,21 +1047,11 @@ private fun DoodleJumpGame(
                         )
                     }
 
-                    val avatarBrush = Brush.radialGradient(
-                        colors = listOf(Color(0xFF03DAC5), Color(0xFF018786)),
-                        center = Offset(playerX, playerY),
-                        radius = avatarRadius * 1.3f
-                    )
-                    drawCircle(
-                        brush = avatarBrush,
-                        radius = avatarRadius,
-                        center = Offset(playerX, playerY)
-                    )
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.8f),
-                        radius = avatarRadius / 4f,
-                        center = Offset(playerX + avatarRadius / 3f, playerY - avatarRadius / 3f)
-                    )
+                      drawSkillGlyph(
+                          attributeType = AttributeType.FOCUS,
+                          center = Offset(playerX, playerY),
+                          radius = avatarRadius
+                      )
                 }
 
                 Text(
@@ -1117,16 +1109,40 @@ private fun Header(
         val stance = state.selectedDifficulty
         val rewardValue = (definition.baseReward * stance.multiplier).roundToInt()
         val attributeLabel = definition.attributeReward.name.lowercase().replaceFirstChar { it.titlecase() }
-        Text(
-            text = definition.title,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            text = definition.description,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = CircleShape
+                    )
+                    .padding(14.dp)
+            ) {
+                SkillGlyphIcon(
+                    attributeType = definition.attributeReward,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = definition.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = definition.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                )
+            }
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1174,9 +1190,50 @@ private fun BugHuntArena(
         drawBackgroundGrid()
         drawTarget(center, bugRadiusPx)
         if (bugVisible) {
-            drawBug(bugPosition, bugRadiusPx)
+            drawSkillGlyph(
+                attributeType = AttributeType.POWER,
+                center = bugPosition,
+                radius = bugRadiusPx
+            )
         }
     }
+}
+
+private fun createSpiralSeed(
+    widthPx: Float,
+    heightPx: Float,
+    bugRadiusPx: Float,
+    runId: Int,
+    difficulty: Difficulty
+): SpiralSeed {
+    val maxRadius = min(widthPx, heightPx) / 2f - bugRadiusPx * difficulty.bugStartRadiusScale()
+    val random = Random(runId * 9176 + 73)
+    val baseAngle = when (difficulty) {
+        Difficulty.EASY -> (-PI / 2f).toFloat()
+        else -> random.nextFloat() * (2f * PI).toFloat()
+    }
+    val rotations = difficulty.bugSpiralRotations()
+    return SpiralSeed(
+        initialAngle = baseAngle,
+        initialRadius = maxRadius.coerceAtLeast(bugRadiusPx * 3f),
+        rotations = rotations
+    )
+}
+
+private fun spiralPosition(
+    seed: SpiralSeed,
+    center: Offset,
+    progress: Float
+): Offset {
+    val clampedProgress = progress.coerceIn(0f, 1f)
+    val eased = 1f - (1f - clampedProgress) * (1f - clampedProgress)
+    val angle = seed.initialAngle + (seed.rotations * eased * (2f * PI).toFloat())
+    val radius = seed.initialRadius * (1f - eased * 0.85f)
+    val wobble = sin(eased * PI * 4f).toFloat() * seed.initialRadius * 0.05f
+    return Offset(
+        x = center.x + cos(angle) * (radius + wobble),
+        y = center.y + sin(angle) * (radius + wobble)
+    )
 }
 
 private fun DrawScope.drawBackgroundGrid() {
@@ -1219,23 +1276,6 @@ private fun DrawScope.drawTarget(center: Offset, bugRadiusPx: Float) {
         color = Color(0xFF6200EE),
         radius = bugRadiusPx / 2f,
         center = center
-    )
-}
-
-private fun DrawScope.drawBug(position: Offset, bugRadiusPx: Float) {
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(Color(0xFF03DAC5), Color(0xFF018786)),
-            center = position,
-            radius = bugRadiusPx * 1.4f
-        ),
-        radius = bugRadiusPx,
-        center = position
-    )
-    drawCircle(
-        color = Color.White,
-        radius = bugRadiusPx / 4f,
-        center = position + Offset(bugRadiusPx / 3f, -bugRadiusPx / 3f)
     )
 }
 
@@ -1506,10 +1546,10 @@ private fun generateRunnerObstacle(
 }
 
 private fun Difficulty.bugHuntDurationFactor(): Double = when (this) {
-    Difficulty.EASY -> 1.25
+    Difficulty.EASY -> 1.45
     Difficulty.NORMAL -> 1.0
-    Difficulty.HARD -> 0.82
-    Difficulty.LEGENDARY -> 0.68
+    Difficulty.HARD -> 0.78
+    Difficulty.LEGENDARY -> 0.6
 }
 
 private fun Difficulty.bugHuntRadiusScale(): Float = when (this) {
@@ -1519,39 +1559,67 @@ private fun Difficulty.bugHuntRadiusScale(): Float = when (this) {
     Difficulty.LEGENDARY -> 0.78f
 }
 
+private fun Difficulty.bugVisibleMillis(base: Long): Long = when (this) {
+    Difficulty.EASY -> (base * 3.0).toLong()
+    Difficulty.NORMAL -> (base * 2.0).toLong()
+    Difficulty.HARD -> (base * 1.2).toLong()
+    Difficulty.LEGENDARY -> (base * 0.75).toLong().coerceAtLeast(120L)
+}
+
+private fun Difficulty.bugHiddenMillis(base: Long): Long = when (this) {
+    Difficulty.EASY -> (base * 0.5).toLong().coerceAtLeast(120L)
+    Difficulty.NORMAL -> (base * 0.9).toLong()
+    Difficulty.HARD -> (base * 1.3).toLong()
+    Difficulty.LEGENDARY -> (base * 1.8).toLong()
+}
+
+private fun Difficulty.bugSpiralRotations(): Float = when (this) {
+    Difficulty.EASY -> 1.6f
+    Difficulty.NORMAL -> 2.2f
+    Difficulty.HARD -> 2.8f
+    Difficulty.LEGENDARY -> 3.3f
+}
+
+private fun Difficulty.bugStartRadiusScale(): Float = when (this) {
+    Difficulty.EASY -> 2.6f
+    Difficulty.NORMAL -> 2.2f
+    Difficulty.HARD -> 2.0f
+    Difficulty.LEGENDARY -> 1.8f
+}
+
 private fun Difficulty.flappySpeedScale(): Float = when (this) {
-    Difficulty.EASY -> 0.9f
+    Difficulty.EASY -> 0.72f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 1.18f
-    Difficulty.LEGENDARY -> 1.32f
+    Difficulty.HARD -> 1.22f
+    Difficulty.LEGENDARY -> 1.36f
 }
 
 private fun Difficulty.flappyGapScale(): Float = when (this) {
-    Difficulty.EASY -> 1.15f
+    Difficulty.EASY -> 1.35f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.85f
-    Difficulty.LEGENDARY -> 0.7f
+    Difficulty.HARD -> 0.82f
+    Difficulty.LEGENDARY -> 0.68f
 }
 
 private fun Difficulty.flappySpacingFactor(): Float = when (this) {
-    Difficulty.EASY -> 1.2f
+    Difficulty.EASY -> 1.35f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.9f
-    Difficulty.LEGENDARY -> 0.8f
+    Difficulty.HARD -> 0.88f
+    Difficulty.LEGENDARY -> 0.78f
 }
 
 private fun Difficulty.flappyDurationFactor(): Double = when (this) {
-    Difficulty.EASY -> 0.9
+    Difficulty.EASY -> 1.35
     Difficulty.NORMAL -> 1.0
-    Difficulty.HARD -> 1.12
-    Difficulty.LEGENDARY -> 1.25
+    Difficulty.HARD -> 1.15
+    Difficulty.LEGENDARY -> 1.28
 }
 
 private fun Difficulty.flappyRadiusScale(): Float = when (this) {
-    Difficulty.EASY -> 1.05f
+    Difficulty.EASY -> 1.12f
     Difficulty.NORMAL -> 1.0f
-    Difficulty.HARD -> 0.92f
-    Difficulty.LEGENDARY -> 0.85f
+    Difficulty.HARD -> 0.9f
+    Difficulty.LEGENDARY -> 0.82f
 }
 
 private fun Difficulty.runnerSpeedScale(): Float = when (this) {
@@ -1638,21 +1706,6 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectBu
             onHit()
         }
     }
-}
-
-private fun randomStartPosition(
-    widthPx: Float,
-    heightPx: Float,
-    bugRadiusPx: Float,
-    seed: Int
-): Offset {
-    val radius = min(widthPx, heightPx) / 2f - bugRadiusPx * 1.5f
-    val random = Random(seed * 9973 + 61)
-    val angle = random.nextDouble(0.0, 2.0 * PI).toFloat()
-    val center = Offset(widthPx / 2f, heightPx / 2f)
-    val x = center.x + cos(angle).toFloat() * radius
-    val y = center.y + sin(angle).toFloat() * radius
-    return Offset(x, y)
 }
 
 private fun Float.formatSeconds(): String = String.format("%.2fs", this)

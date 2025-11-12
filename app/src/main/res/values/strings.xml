@@ -28,7 +28,7 @@
     <string name="home_orders_profile_title">Hero Chronicle</string>
     <string name="home_orders_profile_detail">Track titles and spend earned sigils from the profile crest within the navigation row.</string>
     <string name="profile_title">Hero Chronicle</string>
-    <string name="profile_level_and_xp">Rank %1$d • XP %2$d • Free sigils %3$d</string>
+    <string name="profile_level_and_xp">Rank %1$d • Status sigils %2$d • XP %3$d • Free sigils %4$d</string>
     <string name="profile_combat_rating">Battle rating %1$d</string>
     <string name="profile_power_label">Power</string>
     <string name="profile_agility_label">Agility</string>
@@ -43,6 +43,10 @@
     <string name="training_recommendation">Recommended battle readiness: %1$d</string>
     <string name="training_reward_label">Reward %1$d • Attribute %2$s</string>
     <string name="training_play_button">Begin trial</string>
+    <string name="training_view_high_scores">View high scores</string>
+    <string name="training_high_scores_title">High scores — %1$s</string>
+    <string name="training_high_scores_empty">No victories recorded for this stance.</string>
+    <string name="dialog_close">Close</string>
     <string name="search_title">Scouting Horn</string>
     <string name="search_status_scanning">Listening for nearby Bluetooth beacons...</string>
     <string name="search_status_idle">Sound the horn to sweep for rival banners.</string>
