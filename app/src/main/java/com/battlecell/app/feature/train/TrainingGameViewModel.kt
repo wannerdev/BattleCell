@@ -94,43 +94,40 @@ class TrainingGameViewModel(
             }
 
             val experienceGain = computeExperience(definition, elapsedMillis, score, didWin, difficulty)
-            val attributeGain = computeAttributeGain(definition, elapsedMillis, score, didWin, difficulty)
-            val variantPoints = if (didWin) difficulty.skillPointReward else 0
+            val attributeSigils = computeAttributeSigils(definition, elapsedMillis, score, didWin, difficulty)
+            val bonusSigils = if (didWin) difficulty.skillPointReward else 0
+            val totalSigils = attributeSigils + bonusSigils
 
-              var updated = player
-                  .gainExperience(experienceGain)
-                  .updateAttributes { attrs ->
-                      attrs.increase(definition.attributeReward, attributeGain)
-                  }
+            var updated = player.gainExperience(experienceGain)
 
-              if (variantPoints > 0) {
-                  updated = updated.addVariantSkillPoints(definition.attributeReward, variantPoints)
-              }
+            if (totalSigils > 0) {
+                updated = updated.addVariantSkillPoints(definition.attributeReward, totalSigils)
+            }
 
-              val entry = TrainingScoreEntry(
-                  score = score,
-                  elapsedMillis = elapsedMillis,
-                  achievedAtEpoch = System.currentTimeMillis()
-              )
-              val comparator: (TrainingScoreEntry, TrainingScoreEntry) -> Boolean =
-                  { old, new ->
-                      new.score > old.score ||
-                          (new.score == old.score && new.elapsedMillis < old.elapsedMillis)
-                  }
-              updated = updated.updateTrainingHighScore(
-                  gameId = definition.id,
-                  difficulty = difficulty,
-                  entry = entry,
-                  comparator = comparator
-              )
+            val entry = TrainingScoreEntry(
+                score = score,
+                elapsedMillis = elapsedMillis,
+                achievedAtEpoch = System.currentTimeMillis()
+            )
+            val comparator: (TrainingScoreEntry, TrainingScoreEntry) -> Boolean =
+                { old, new ->
+                    new.score > old.score ||
+                        (new.score == old.score && new.elapsedMillis < old.elapsedMillis)
+                }
+            updated = updated.updateTrainingHighScore(
+                gameId = definition.id,
+                difficulty = difficulty,
+                entry = entry,
+                comparator = comparator
+            )
 
             playerRepository.upsert(updated)
 
             val result = TrainingGameResult.Victory(
-                attributeGain = attributeGain,
+                attributeSigilGain = attributeSigils,
                 experienceGain = experienceGain,
                 attributeType = definition.attributeReward,
-                variantSkillPointGain = variantPoints,
+                bonusSigilGain = bonusSigils,
                 difficulty = difficulty
             )
             resultFlow.value = result
@@ -176,7 +173,7 @@ class TrainingGameViewModel(
         return (raw * difficulty.experienceFactor()).roundToInt()
     }
 
-    private fun computeAttributeGain(
+    private fun computeAttributeSigils(
         definition: TrainingGameDefinition,
         elapsedMillis: Long,
         score: Int,
@@ -256,10 +253,10 @@ data class TrainingGameUiState(
 
 sealed interface TrainingGameResult {
     data class Victory(
-        val attributeGain: Int,
+        val attributeSigilGain: Int,
         val experienceGain: Int,
         val attributeType: AttributeType,
-        val variantSkillPointGain: Int,
+        val bonusSigilGain: Int,
         val difficulty: Difficulty
     ) : TrainingGameResult
 

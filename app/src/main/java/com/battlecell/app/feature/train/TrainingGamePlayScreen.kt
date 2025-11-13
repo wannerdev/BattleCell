@@ -96,7 +96,7 @@ fun TrainingGameRoute(
                 is TrainingGameEvent.Error -> snackbarHostState.showSnackbar(event.message)
                 TrainingGameEvent.Defeat -> snackbarHostState.showSnackbar("Challenge failed. Try again.")
                 is TrainingGameEvent.Victory -> snackbarHostState.showSnackbar(
-                    "Victory! +${event.result.attributeGain} ${event.result.attributeType.name.lowercase()} - +${event.result.experienceGain} XP"
+                    "Victory! +${event.result.experienceGain} XP • +${event.result.attributeSigilGain + event.result.bonusSigilGain} ${event.result.attributeType.name.lowercase()} sigils"
                 )
             }
         }
@@ -297,9 +297,10 @@ private fun BugHuntGame(
                             }
                             val elapsed = SystemClock.elapsedRealtime() - startTimestamp
                             elapsedMillis = elapsed
-                            val remaining =
-                                (missionDuration - elapsed.toInt()).coerceAtLeast(0)
-                            onSubmitResult(elapsed, true, remaining)
+                              val remainingMillis =
+                                  (missionDuration.toLong() - elapsed).coerceAtLeast(0L)
+                              val scoreTenths = (remainingMillis / 100.0).roundToInt()
+                              onSubmitResult(elapsed, true, scoreTenths)
                             gamePhase = GamePhase.Victory
                         }
                     }
@@ -412,12 +413,14 @@ private fun FlappyFlightGame(
               val birdX = widthPx * 0.28f
               val pipeWidth = with(density) { 52.dp.toPx() }
               val pipeSpacing = widthPx * (0.45f * difficulty.flappySpacingFactor())
-              val missionDuration = ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
+              val missionDuration =
+                  ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
               val gapFactor = difficulty.flappyGapScale()
               val speedScale = difficulty.flappySpeedScale()
               val gravity = 1200f * speedScale
               val flapImpulse = -520f * speedScale
               val pipeSpeed = (widthPx / 2.8f) * speedScale
+              val collisionRadius = birdRadiusPx * 0.78f
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
                 if (gamePhase != GamePhase.Playing) {
@@ -473,35 +476,35 @@ private fun FlappyFlightGame(
                         break
                     }
 
-                    birdVelocity += gravity * deltaSeconds
-                    birdY += birdVelocity * deltaSeconds
+                      birdVelocity += gravity * deltaSeconds
+                      birdY += birdVelocity * deltaSeconds
 
-                    var defeated = birdY <= birdRadiusPx || birdY >= heightPx - birdRadiusPx
+                      var defeated = birdY - collisionRadius <= 0f || birdY + collisionRadius >= heightPx
 
-                    for (index in pipes.indices) {
-                        val pipe = pipes[index]
-                        val newX = pipe.x - pipeSpeed * deltaSeconds
-                        var newScored = pipe.scored
-                        if (!pipe.scored && newX + pipeWidth / 2f < birdX - birdRadiusPx) {
-                            newScored = true
-                            localScore += 1
-                        }
+                      for (index in pipes.indices) {
+                          val pipe = pipes[index]
+                          val newX = pipe.x - pipeSpeed * deltaSeconds
+                          var newScored = pipe.scored
+                          if (!pipe.scored && newX + pipeWidth / 2f < birdX - birdRadiusPx) {
+                              newScored = true
+                              localScore += 1
+                          }
 
-                        if (!defeated) {
-                            val overlapsHorizontally =
-                                birdX + birdRadiusPx > newX && birdX - birdRadiusPx < newX + pipeWidth
-                            if (overlapsHorizontally) {
-                                val gapHalf = pipe.gapHeight / 2f
-                                val topLimit = pipe.gapCenter - gapHalf
-                                val bottomLimit = pipe.gapCenter + gapHalf
-                                if (birdY - birdRadiusPx < topLimit || birdY + birdRadiusPx > bottomLimit) {
-                                    defeated = true
-                                }
-                            }
-                        }
+                          if (!defeated) {
+                              val overlapsHorizontally =
+                                  birdX + collisionRadius > newX && birdX - collisionRadius < newX + pipeWidth
+                              if (overlapsHorizontally) {
+                                  val gapHalf = pipe.gapHeight / 2f
+                                  val topLimit = pipe.gapCenter - gapHalf
+                                  val bottomLimit = pipe.gapCenter + gapHalf
+                                  if (birdY - collisionRadius < topLimit || birdY + collisionRadius > bottomLimit) {
+                                      defeated = true
+                                  }
+                              }
+                          }
 
-                        pipes[index] = pipe.copy(x = newX, scored = newScored)
-                    }
+                          pipes[index] = pipe.copy(x = newX, scored = newScored)
+                      }
 
                     pipes.removeAll { it.x + pipeWidth < 0f }
                     if (pipes.isEmpty() || pipes.last().x < widthPx - pipeSpacing) {
@@ -1417,9 +1420,19 @@ private fun VictoryPanel(
             val subtitle = when (lastResult) {
                 is TrainingGameResult.Victory -> {
                     val attributeLabel = lastResult.attributeType.name.lowercase().replaceFirstChar { it.titlecase() }
-                    "Attribute +${lastResult.attributeGain} $attributeLabel • XP +${lastResult.experienceGain} • ${lastResult.variantSkillPointGain} $attributeLabel sigils (${lastResult.difficulty.displayName})"
+                    val totalSigils = lastResult.attributeSigilGain + lastResult.bonusSigilGain
+                    val breakdown = when {
+                        lastResult.attributeSigilGain > 0 && lastResult.bonusSigilGain > 0 ->
+                            " (${lastResult.attributeSigilGain} earned + ${lastResult.bonusSigilGain} stance bonus)"
+                        lastResult.attributeSigilGain > 0 ->
+                            " (${lastResult.attributeSigilGain} earned)"
+                        lastResult.bonusSigilGain > 0 ->
+                            " (${lastResult.bonusSigilGain} stance bonus)"
+                        else -> ""
+                    }
+                    "Sigils +$totalSigils $attributeLabel • XP +${lastResult.experienceGain} • ${lastResult.difficulty.displayName}$breakdown"
                 }
-                else -> "Attribute boost and experience gained."
+                else -> "Sigils and experience gained."
             }
             Text(
                 text = subtitle,
