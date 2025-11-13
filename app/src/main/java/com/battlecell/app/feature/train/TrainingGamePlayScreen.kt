@@ -1177,6 +1177,13 @@ private fun DoodleJumpGame(
         powerUp.apply(acc)
     }
     var guardianCharges by remember { mutableIntStateOf(0) }
+    val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 650
+    val platformCount = (difficulty.jumpPlatformCount() + oracleModifiers.platformCountBonus).coerceAtLeast(6)
+    val requiredScore = (difficulty.jumpScoreGoal(baseTarget) * (1f - oracleModifiers.scoreGoalReduction))
+        .roundToInt()
+        .coerceAtLeast(80)
+    val platformWidthScale = (difficulty.jumpPlatformWidthScale() + oracleModifiers.platformWidthBonus)
+        .coerceIn(0.65f, 1.6f)
 
     var gamePhase by remember(definition.id + "_jump") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_jump") { mutableIntStateOf(0) }
@@ -1210,13 +1217,6 @@ private fun DoodleJumpGame(
                 (behavior.bugRadiusDp.takeIf { it > 0f } ?: 20f).dp.toPx()
             }
             val platformHeight = with(density) { 14.dp.toPx() }
-            val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 650
-            val platformCount = (difficulty.jumpPlatformCount() + oracleModifiers.platformCountBonus).coerceAtLeast(6)
-            val requiredScore = (difficulty.jumpScoreGoal(baseTarget) * (1f - oracleModifiers.scoreGoalReduction))
-                .roundToInt()
-                .coerceAtLeast(80)
-            val platformWidthScale = (difficulty.jumpPlatformWidthScale() + oracleModifiers.platformWidthBonus)
-                .coerceIn(0.65f, 1.6f)
             val landingForgiveness = avatarRadius *
                 (0.18f * oracleModifiers.landingForgivenessMultiplier).coerceAtLeast(0.12f)
             val gravityAcceleration = 2100f * difficulty.jumpGravityScale() * oracleModifiers.gravityMultiplier
