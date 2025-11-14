@@ -1,18 +1,22 @@
 package com.battlecell.app.feature.search
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothSearching
-import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,12 +30,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.battlecell.app.R
 import com.battlecell.app.domain.model.EncounterProfile
@@ -39,6 +48,7 @@ import com.battlecell.app.domain.model.EncounterSource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun SearchRoute(
@@ -47,6 +57,42 @@ fun SearchRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var pendingScan by remember { mutableStateOf(false) }
+
+    fun requiredScanPermissions(): Set<String> {
+        val required = mutableSetOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            required += Manifest.permission.BLUETOOTH_SCAN
+            required += Manifest.permission.BLUETOOTH_CONNECT
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            required += Manifest.permission.NEARBY_WIFI_DEVICES
+        } else {
+            required += Manifest.permission.ACCESS_FINE_LOCATION
+            required += Manifest.permission.ACCESS_COARSE_LOCATION
+        }
+        return required
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val denied = permissions.filterValues { granted -> !granted }.keys
+        if (denied.isEmpty()) {
+            if (pendingScan) {
+                viewModel.manualScan()
+            }
+        } else {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.search_permission_denied)
+                )
+            }
+        }
+        pendingScan = false
+    }
 
     LaunchedEffect(uiState.message) {
         val message = uiState.message ?: return@LaunchedEffect
@@ -83,12 +129,23 @@ fun SearchRoute(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                 )
-                  Button(
-                      onClick = { viewModel.manualScan() },
-                      enabled = !uiState.isScanning,
-                      shape = RoundedCornerShape(16.dp),
-                      contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-                  ) {
+            Button(
+                onClick = {
+                    val required = requiredScanPermissions()
+                    val missing = required.filter { permission ->
+                        ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+                    }
+                    if (missing.isEmpty()) {
+                        viewModel.manualScan()
+                    } else {
+                        pendingScan = true
+                        permissionLauncher.launch(missing.toTypedArray())
+                    }
+                },
+                enabled = !uiState.isScanning,
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+            ) {
                       Icon(
                           imageVector = Icons.Default.BluetoothSearching,
                           contentDescription = null

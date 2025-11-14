@@ -51,6 +51,7 @@
     <string name="search_status_scanning">Listening for nearby Bluetooth beacons...</string>
     <string name="search_status_idle">Sound the horn to sweep for rival banners.</string>
     <string name="search_scan_button">Sound the horn</string>
+    <string name="search_permission_denied">Grant Bluetooth and Wi-Fi scan access to sound the horn.</string>
     <string name="search_empty_state">No banners spotted. Train or sweep again.</string>
     <string name="search_power_label">Power %1$d</string>
     <string name="search_last_seen_label">Last seen %1$s</string>
