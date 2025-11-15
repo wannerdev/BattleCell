@@ -1944,21 +1944,17 @@
     <string name="fab_transformation_sheet_behavior" translatable="false">com.google.android.material.transformation.FabTransformationSheetBehavior</string>
     <string name="hide_bottom_view_on_scroll_behavior" translatable="false">com.google.android.material.behavior.HideBottomViewOnScrollBehavior</string>
     <string name="home_level_label">Rank %1$d</string>
+    <string name="home_missions_empty">No missions are active right now.</string>
+    <string name="home_missions_more">+%1$d more orders</string>
+    <string name="home_missions_subtitle">Tap to open the war council ledger and manage missions.</string>
+    <string name="home_missions_title">Active war council orders</string>
     <string name="home_orders_profile_detail">Track titles and spend earned sigils from the profile crest within the navigation row.</string>
     <string name="home_orders_profile_title">Hero Chronicle</string>
-    <string name="home_orders_search_detail">The scouting horn below reveals nearby challengers whenever the search tab is opened.</string>
+    <string name="home_orders_search_detail">The Horn tab below reveals nearby challengers whenever you sound it.</string>
     <string name="home_orders_search_title">Scout the Realm</string>
     <string name="home_orders_title">War Council Orders</string>
-    <string name="home_orders_training_detail">Use the sword sigil in the bottom bar when you are ready to brave harsher trials.</string>
+    <string name="home_orders_training_detail">Use the Trials tab below when you are ready to brave harsher training.</string>
     <string name="home_orders_training_title">Training Grounds</string>
-    <string name="home_skill_agility_label">Agility courses</string>
-    <string name="home_skill_endurance_label">Endurance marches</string>
-    <string name="home_skill_focus_label">Focus meditations</string>
-    <string name="home_skill_footer">Variant sigils may only be spent on their matching attribute. Visit the character keep to invest them wisely.</string>
-    <string name="home_skill_general_label">General stockpile</string>
-    <string name="home_skill_points_suffix">%1$d sigils</string>
-    <string name="home_skill_power_label">Power drills</string>
-    <string name="home_skill_reserves_title">Skill Reserves</string>
     <string name="home_stat_agility">Agility</string>
     <string name="home_stat_endurance">Endurance</string>
     <string name="home_stat_focus">Focus</string>
@@ -2066,6 +2062,10 @@
     <string description="Suffix for time in 12-hour standard, after noon. [CHAR_LIMIT=2]" name="material_timepicker_pm">PM</string>
     <string description="Title for the dialog with a time picker. [CHAR_LIMIT=32]" name="material_timepicker_select_time">Select time</string>
     <string name="material_timepicker_text_input_mode_description">Switch to text input mode for the time input.</string>
+    <string name="mission_status_active">Active</string>
+    <string name="mission_status_done">Completed</string>
+    <string name="mission_status_failed">Failed</string>
+    <string name="mission_status_locked">Locked</string>
     <string description="Content description for new notification (no number count) [CHAR_LIMIT=NONE]" name="mtrl_badge_numberless_content_description">New notification</string>
     <string name="mtrl_checkbox_button_icon_path_checked" translatable="false">M14,18.2 11.4,15.6 10,17 14,21 22,13 20.6,11.6z</string>
     <string name="mtrl_checkbox_button_icon_path_group_name" translatable="false">icon</string>
@@ -2148,7 +2148,10 @@
     <string name="path_password_eye_mask_visible" translatable="false">M2,4.27 L2,4.27 L4.54,1.73 L4.54,1.73 L4.54,1 L23,1 L23,23 L1,23 L1,4.27 Z</string>
     <string name="path_password_strike_through" translatable="false">M3.27,4.27 L19.74,20.74</string>
     <string name="profile_agility_label">Agility</string>
+    <string name="profile_allocate_all_option">Spend all (%1$d)</string>
     <string name="profile_allocate_button">Allocate</string>
+    <string name="profile_allocate_more_button">Spend more</string>
+    <string name="profile_allocate_option">Spend %1$d sigils</string>
     <string name="profile_attribute_value">%1$d pts</string>
     <string name="profile_combat_rating">Battle rating %1$d</string>
     <string name="profile_empty_state">Raise a hero to view their chronicle.</string>
@@ -2162,8 +2165,11 @@
     <string name="range_end">"Range end"</string>
     <string name="range_start">"Range start"</string>
     <string name="search_battle_button">Challenge</string>
+    <string name="search_dragon_locked">Requires a sapphire potion from paladins.</string>
+    <string name="search_dragon_warning">You are not ready to fight him yet, search for the sapphire potion.</string>
     <string name="search_empty_state">No banners spotted. Train or sweep again.</string>
     <string name="search_last_seen_label">Last seen %1$s</string>
+    <string name="search_locked_message">Already challenged.</string>
     <string name="search_menu_title">Search</string>
     <string name="search_permission_denied">Grant Bluetooth and Wi-Fi scan access to sound the horn.</string>
     <string name="search_power_label">Power %1$d</string>
@@ -2194,6 +2200,11 @@
     <string name="training_reward_label">Reward %1$d • Attribute %2$s</string>
     <string name="training_title">War Table</string>
     <string name="training_view_high_scores">View high scores</string>
+    <string name="war_council_condition">Condition: %1$s</string>
+    <string name="war_council_progress">%1$d / %2$d</string>
+    <string name="war_council_reward">Reward: %1$s</string>
+    <string name="war_council_subtitle">Review every mission decree. Active orders glow bright, while deactivated tasks remain grayed out.</string>
+    <string name="war_council_title">War Council</string>
     <style name="AlertDialog.AppCompat" parent="Base.AlertDialog.AppCompat"/>
     <style name="AlertDialog.AppCompat.Light" parent="Base.AlertDialog.AppCompat.Light"/>
     <style name="Animation.AppCompat.Dialog" parent="Base.Animation.AppCompat.Dialog"/>

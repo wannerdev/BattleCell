@@ -1501,7 +1501,7 @@ private fun RuneMatchGame(
                 }
                 if (col - start >= 3) {
                     for (c in start until col) {
-                        matches += boardIndex(row, c)
+                        matches.add(boardIndex(row, c))
                     }
                 }
             }
@@ -1517,7 +1517,7 @@ private fun RuneMatchGame(
                 }
                 if (row - start >= 3) {
                     for (r in start until row) {
-                        matches += boardIndex(r, col)
+                        matches.add(boardIndex(r, col))
                     }
                 }
             }
@@ -2676,6 +2676,34 @@ private fun Difficulty.jumpHorizontalScale(): Float = when (this) {
     Difficulty.NORMAL -> 1.0f
     Difficulty.HARD -> 0.9f
     Difficulty.LEGENDARY -> 0.82f
+}
+
+private fun Difficulty.tetrisLineFactor(): Double = when (this) {
+    Difficulty.EASY -> 0.8
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 1.25
+    Difficulty.LEGENDARY -> 1.45
+}
+
+private fun Difficulty.tetrisSpeedMultiplier(): Double = when (this) {
+    Difficulty.EASY -> 0.85
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 1.25
+    Difficulty.LEGENDARY -> 1.45
+}
+
+private fun Difficulty.matchScoreFactor(): Double = when (this) {
+    Difficulty.EASY -> 0.8
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 1.25
+    Difficulty.LEGENDARY -> 1.4
+}
+
+private fun Difficulty.matchMoveFactor(): Double = when (this) {
+    Difficulty.EASY -> 1.2
+    Difficulty.NORMAL -> 1.0
+    Difficulty.HARD -> 0.9
+    Difficulty.LEGENDARY -> 0.75
 }
 
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectBugTap(
