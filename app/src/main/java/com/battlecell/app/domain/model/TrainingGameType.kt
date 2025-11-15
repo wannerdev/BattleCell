@@ -15,5 +15,11 @@ enum class TrainingGameType {
     DOODLE_JUMP,
 
     @SerialName("subway_run")
-    SUBWAY_RUN
+    SUBWAY_RUN,
+
+    @SerialName("tetris_siege")
+    TETRIS_SIEGE,
+
+    @SerialName("rune_match")
+    RUNE_MATCH
 }

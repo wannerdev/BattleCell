@@ -1,5 +1,6 @@
 package com.battlecell.app.domain.model
 
+import com.battlecell.app.domain.model.mission.MissionState
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.UUID
@@ -19,6 +20,8 @@ data class PlayerCharacter(
     @SerialName("skill_ledger") val skillLedger: SkillPointLedger = SkillPointLedger(),
     @SerialName("status_points") val statusPoints: Int = 0,
     @SerialName("training_high_scores") val trainingHighScores: Map<String, TrainingGameScores> = emptyMap(),
+    @SerialName("inventory") val inventory: Inventory = Inventory(),
+    @SerialName("missions") val missions: Map<String, MissionState> = emptyMap(),
     @SerialName("created_at") val createdAtEpoch: Long = System.currentTimeMillis(),
     @SerialName("updated_at") val updatedAtEpoch: Long = System.currentTimeMillis()
 ) {
@@ -129,6 +132,30 @@ data class PlayerCharacter(
             updatedAtEpoch = System.currentTimeMillis()
         )
     }
+
+      fun updateInventory(transform: (Inventory) -> Inventory): PlayerCharacter {
+          val updatedInventory = transform(inventory)
+          if (updatedInventory == inventory) return this
+          return copy(
+              inventory = updatedInventory,
+              updatedAtEpoch = System.currentTimeMillis()
+          )
+      }
+
+      fun addSapphirePotion(amount: Int = 1): PlayerCharacter =
+          updateInventory { it.addSapphirePotions(amount) }
+
+      fun consumeSapphirePotion(): PlayerCharacter =
+          updateInventory { it.consumeSapphirePotion() }
+
+      fun withMissions(transform: (Map<String, MissionState>) -> Map<String, MissionState>): PlayerCharacter {
+          val updated = transform(missions)
+          if (updated == missions) return this
+          return copy(
+              missions = updated,
+              updatedAtEpoch = System.currentTimeMillis()
+          )
+      }
 
     companion object {
         private const val SKILL_POINTS_PER_LEVEL = 2

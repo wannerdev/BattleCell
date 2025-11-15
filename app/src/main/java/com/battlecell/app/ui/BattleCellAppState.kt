@@ -14,6 +14,7 @@ class BattleCellAppState(
 ) {
     val topLevelDestinations = listOf(
         BattleCellDestination.Home,
+        BattleCellDestination.WarCouncil,
         BattleCellDestination.Training,
         BattleCellDestination.Search,
         BattleCellDestination.Profile

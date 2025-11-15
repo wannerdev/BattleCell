@@ -35,8 +35,8 @@ class GetTrainingGamesUseCase {
             gameType = TrainingGameType.FLAPPY_FLIGHT,
             behavior = TrainingGameBehavior(
                 totalDurationMillis = 52000,
-                flickerEnabled = false,
-                bugRadiusDp = 28f
+                bugRadiusDp = 28f,
+                targetScore = 18
             )
         ),
         TrainingGameDefinition(
@@ -51,7 +51,7 @@ class GetTrainingGamesUseCase {
             behavior = TrainingGameBehavior(
                 totalDurationMillis = 0,
                 bugRadiusDp = 24f,
-                targetScore = 650
+                targetScore = 520
             )
         ),
         TrainingGameDefinition(
@@ -66,6 +66,39 @@ class GetTrainingGamesUseCase {
             behavior = TrainingGameBehavior(
                 totalDurationMillis = 64000,
                 bugRadiusDp = 30f
+            )
+        ),
+        TrainingGameDefinition(
+            id = "tetris-siege",
+            title = "Siegebreak Stack",
+            description = "Stack wardstones to plug the breach while choosing which sigil tiles drop next.",
+            attributeReward = AttributeType.FOCUS,
+            difficulty = Difficulty.NORMAL,
+            baseReward = 95,
+            icon = "tower",
+            gameType = TrainingGameType.TETRIS_SIEGE,
+            behavior = TrainingGameBehavior(
+                totalDurationMillis = 700,
+                targetScore = 12,
+                boardWidth = 10,
+                boardHeight = 18
+            )
+        ),
+        TrainingGameDefinition(
+            id = "rune-harvest",
+            title = "Rune Harvest",
+            description = "Swap autumn runes to collect enough essence before the war council's sandglass runs out.",
+            attributeReward = AttributeType.AGILITY,
+            difficulty = Difficulty.NORMAL,
+            baseReward = 85,
+            icon = "runes",
+            gameType = TrainingGameType.RUNE_MATCH,
+            behavior = TrainingGameBehavior(
+                totalDurationMillis = 0,
+                targetScore = 800,
+                boardWidth = 7,
+                boardHeight = 7,
+                moveLimit = 24
             )
         )
     )

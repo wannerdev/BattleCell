@@ -8,6 +8,7 @@ import com.battlecell.app.feature.onboarding.OnboardingViewModel
 import com.battlecell.app.feature.profile.ProfileViewModel
 import com.battlecell.app.feature.search.SearchViewModel
 import com.battlecell.app.feature.train.TrainingViewModel
+import com.battlecell.app.feature.war.WarCouncilViewModel
 
 class BattleCellViewModelFactory(
     private val appContainer: AppContainer
@@ -24,6 +25,9 @@ class BattleCellViewModelFactory(
 
             modelClass.isAssignableFrom(ProfileViewModel::class.java) ->
                 ProfileViewModel(appContainer.playerRepository)
+
+            modelClass.isAssignableFrom(WarCouncilViewModel::class.java) ->
+                WarCouncilViewModel(appContainer.playerRepository)
 
             modelClass.isAssignableFrom(TrainingViewModel::class.java) ->
                 TrainingViewModel(

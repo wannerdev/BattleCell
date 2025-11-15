@@ -10,6 +10,8 @@ import com.battlecell.app.domain.model.TrainingGameDefinition
 import com.battlecell.app.domain.model.TrainingGameType
 import com.battlecell.app.domain.model.TrainingScoreEntry
 import com.battlecell.app.domain.usecase.GetTrainingGamesUseCase
+import com.battlecell.app.domain.model.mission.MissionEvent
+import com.battlecell.app.domain.service.MissionEngine
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -93,15 +95,21 @@ class TrainingGameViewModel(
                 return@launch
             }
 
-            val experienceGain = computeExperience(definition, elapsedMillis, score, didWin, difficulty)
             val attributeSigils = computeAttributeSigils(definition, elapsedMillis, score, didWin, difficulty)
             val bonusSigils = if (didWin) difficulty.skillPointReward else 0
             val totalSigils = attributeSigils + bonusSigils
 
-            var updated = player.gainExperience(experienceGain)
+            var updated = player
 
             if (totalSigils > 0) {
                 updated = updated.addVariantSkillPoints(definition.attributeReward, totalSigils)
+            }
+
+            if (didWin && difficulty == Difficulty.LEGENDARY) {
+                updated = MissionEngine.process(
+                    updated,
+                    MissionEvent.LegendaryTrainingWin(definition.id)
+                )
             }
 
             val entry = TrainingScoreEntry(
@@ -125,7 +133,6 @@ class TrainingGameViewModel(
 
             val result = TrainingGameResult.Victory(
                 attributeSigilGain = attributeSigils,
-                experienceGain = experienceGain,
                 attributeType = definition.attributeReward,
                 bonusSigilGain = bonusSigils,
                 difficulty = difficulty
@@ -133,44 +140,6 @@ class TrainingGameViewModel(
             resultFlow.value = result
             eventsChannel.send(TrainingGameEvent.Victory(result))
         }
-    }
-
-    private fun computeExperience(
-        definition: TrainingGameDefinition,
-        elapsedMillis: Long,
-        score: Int,
-        didWin: Boolean,
-        difficulty: Difficulty
-    ): Int {
-        val base = definition.baseReward
-        val raw = when (definition.gameType) {
-            TrainingGameType.BUG_HUNT -> {
-                if (definition.behavior.flickerEnabled) {
-                    val bonus = max(0, (definition.behavior.totalDurationMillis - elapsedMillis).toInt())
-                    base + (bonus / 40)
-                } else {
-                    base
-                }
-            }
-
-            TrainingGameType.FLAPPY_FLIGHT -> {
-                val duration = definition.behavior.totalDurationMillis.takeIf { it > 0 } ?: 45000
-                val progress = (elapsedMillis.toFloat() / duration).coerceIn(0f, 1f)
-                val bonus = (base * (0.6f + progress * 0.8f)).roundToInt()
-                bonus + if (didWin) base / 4 else 0
-            }
-
-            TrainingGameType.DOODLE_JUMP -> {
-                val performance = max(0, score / 20)
-                base + performance + if (didWin) base / 3 else 0
-            }
-
-            TrainingGameType.SUBWAY_RUN -> {
-                val runtimeBonus = max(0, (elapsedMillis / 700L).toInt())
-                base + runtimeBonus + if (didWin) base / 5 else 0
-            }
-        }
-        return (raw * difficulty.experienceFactor()).roundToInt()
     }
 
     private fun computeAttributeSigils(
@@ -207,6 +176,18 @@ class TrainingGameViewModel(
                 val stamina = (elapsedMillis / 20000L).coerceAtLeast(0)
                 max(1, stamina.toInt() + if (didWin) 1 else 0)
             }
+
+            TrainingGameType.TETRIS_SIEGE -> {
+                val target = definition.behavior.targetScore.takeIf { it > 0 } ?: 12
+                val ratio = (score.toFloat() / target).coerceIn(0f, 1.5f)
+                max(1, (ratio * 6f).roundToInt())
+            }
+
+            TrainingGameType.RUNE_MATCH -> {
+                val target = definition.behavior.targetScore.takeIf { it > 0 } ?: 800
+                val ratio = (score.toFloat() / target).coerceIn(0f, 1.5f)
+                max(1, (ratio * 5f).roundToInt())
+            }
         }
         return max(1, (raw * difficulty.attributeFactor()).roundToInt())
     }
@@ -229,13 +210,6 @@ class TrainingGameViewModel(
     }
 }
 
-private fun Difficulty.experienceFactor(): Double = when (this) {
-    Difficulty.EASY -> 1.0
-    Difficulty.NORMAL -> 1.25
-    Difficulty.HARD -> 1.6
-    Difficulty.LEGENDARY -> 2.1
-}
-
 private fun Difficulty.attributeFactor(): Double = when (this) {
     Difficulty.EASY -> 1.0
     Difficulty.NORMAL -> 1.15
@@ -252,13 +226,12 @@ data class TrainingGameUiState(
 )
 
 sealed interface TrainingGameResult {
-    data class Victory(
-        val attributeSigilGain: Int,
-        val experienceGain: Int,
-        val attributeType: AttributeType,
-        val bonusSigilGain: Int,
-        val difficulty: Difficulty
-    ) : TrainingGameResult
+        data class Victory(
+            val attributeSigilGain: Int,
+            val attributeType: AttributeType,
+            val bonusSigilGain: Int,
+            val difficulty: Difficulty
+        ) : TrainingGameResult
 
     data object Defeat : TrainingGameResult
 }

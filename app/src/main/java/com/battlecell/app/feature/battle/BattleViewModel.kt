@@ -5,8 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.battlecell.app.data.repository.EncounterRepository
 import com.battlecell.app.data.repository.PlayerRepository
+import com.battlecell.app.domain.model.EncounterArchetype
 import com.battlecell.app.domain.model.EncounterProfile
 import com.battlecell.app.domain.model.PlayerCharacter
+import com.battlecell.app.domain.model.mission.MissionEvent
+import com.battlecell.app.domain.model.mission.MissionIds
+import com.battlecell.app.domain.model.mission.MissionStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
+import com.battlecell.app.domain.service.MissionEngine
 
 class BattleViewModel(
     private val playerRepository: PlayerRepository,
@@ -72,12 +77,34 @@ class BattleViewModel(
         val state = uiState.value
         val player = state.player ?: return
         val opponent = state.opponent ?: return
+        if (opponent.archetype == EncounterArchetype.DRAGON && !player.inventory.hasSapphirePotion) {
+            viewModelScope.launch {
+                toastMessage.value = "You are not ready to fight him yet, search for the sapphire potion."
+            }
+            return
+        }
         when (state.comparison) {
               StrengthComparison.PLAYER_ADVANTAGE -> resolveVictory(player, opponent, previewRewards(state.comparison, player, opponent))
             StrengthComparison.NPC_ADVANTAGE -> finalizeDefeat(player, "The rival's strength overwhelmed you.")
             StrengthComparison.TIE -> startRoulette()
             StrengthComparison.UNDECIDED -> {}
         }
+    }
+
+    private fun buildVictoryMessage(
+        reward: BattleRewards,
+        potionFound: Boolean,
+        dragonDefeated: Boolean
+    ): String {
+        val base = "Victory! +${reward.experienceReward} XP • +${reward.statusReward} status points"
+        val notes = mutableListOf<String>()
+        if (potionFound) {
+            notes += "Recovered a sapphire potion"
+        }
+        if (dragonDefeated) {
+            notes += "Mechtdor is slain"
+        }
+        return if (notes.isEmpty()) base else "$base • ${notes.joinToString(separator = " • ")}"
     }
 
     fun startRoulette() {
@@ -146,26 +173,57 @@ class BattleViewModel(
     private fun resolveVictory(
         player: PlayerCharacter,
         opponent: EncounterProfile,
-          reward: BattleRewards
+        reward: BattleRewards
     ) {
         if (processingState.value) return
         viewModelScope.launch {
             processingState.value = true
-              val updated = player
-                  .recordVictory()
-                  .gainExperience(reward.experienceReward)
-                  .gainStatusPoints(reward.statusReward)
+            var updated = player
+                .recordVictory()
+                .gainExperience(reward.experienceReward)
+                .gainStatusPoints(reward.statusReward)
+
+            updated = MissionEngine.process(
+                updated,
+                MissionEvent.BattleVictory(opponent.archetype, opponent.title)
+            )
+
+            var potionFound = false
+            if (opponent.archetype == EncounterArchetype.PALADIN) {
+                val huntState = updated.missions[MissionIds.HUNT_PALADINS]
+                val huntUnlocked = huntState != null && huntState.status != MissionStatus.DEACTIVATED
+                if (huntUnlocked && !updated.inventory.hasSapphirePotion && Random.nextFloat() <= 0.4f) {
+                    updated = updated.addSapphirePotion()
+                    if (huntState?.status == MissionStatus.ACTIVE) {
+                        updated = MissionEngine.process(updated, MissionEvent.SapphirePotionFound)
+                    }
+                    potionFound = true
+                }
+            }
+
+            if (opponent.archetype == EncounterArchetype.DRAGON) {
+                if (updated.inventory.hasSapphirePotion) {
+                    updated = updated.consumeSapphirePotion()
+                }
+                updated = MissionEngine.process(updated, MissionEvent.DragonSlain)
+            }
+
             playerRepository.upsert(updated)
             resultState.value = BattleResult.Victory(
-                  statusReward = reward.statusReward,
-                  experienceReward = reward.experienceReward,
+                statusReward = reward.statusReward,
+                experienceReward = reward.experienceReward,
                 newLevel = updated.level,
-                  newStatusTotal = updated.statusPoints,
-                  newExperienceTotal = updated.experience
+                newStatusTotal = updated.statusPoints,
+                newExperienceTotal = updated.experience,
+                sapphirePotionFound = potionFound
             )
             rouletteState.value = null
             processingState.value = false
-              toastMessage.value = "Victory! +${reward.experienceReward} XP • +${reward.statusReward} status points"
+            toastMessage.value = buildVictoryMessage(
+                reward = reward,
+                potionFound = potionFound,
+                dragonDefeated = opponent.archetype == EncounterArchetype.DRAGON
+            )
         }
     }
 
@@ -263,13 +321,14 @@ class BattleViewModel(
     )
 
     sealed interface BattleResult {
-          data class Victory(
-              val statusReward: Int,
-              val experienceReward: Int,
-              val newLevel: Int,
-              val newStatusTotal: Int,
-              val newExperienceTotal: Int
-          ) : BattleResult
+        data class Victory(
+            val statusReward: Int,
+            val experienceReward: Int,
+            val newLevel: Int,
+            val newStatusTotal: Int,
+            val newExperienceTotal: Int,
+            val sapphirePotionFound: Boolean = false
+        ) : BattleResult
 
         data class Defeat(val reason: String) : BattleResult
     }

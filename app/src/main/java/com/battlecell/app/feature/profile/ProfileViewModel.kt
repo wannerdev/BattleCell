@@ -32,7 +32,7 @@ class ProfileViewModel(
         initialValue = ProfileUiState(isLoading = true)
     )
 
-    fun allocatePoint(type: AttributeType) {
+    fun allocatePoints(type: AttributeType, requestedAmount: Int) {
         viewModelScope.launch {
             val player = playerRepository.playerStream.first()
             if (player == null) {
@@ -44,9 +44,18 @@ class ProfileViewModel(
                 toastMessages.value = "No sigils remain for ${type.name.lowercase()}."
                 return@launch
             }
-            val updated = player.spendSkillPoints(type, 1)
+            val amount = when {
+                requestedAmount <= 0 -> 1
+                requestedAmount > available -> available
+                else -> requestedAmount
+            }
+            val updated = player.spendSkillPoints(type, amount)
+            if (updated == player) {
+                toastMessages.value = "Unable to allocate sigils right now."
+                return@launch
+            }
             playerRepository.upsert(updated)
-            toastMessages.value = "Allocated 1 sigil to ${type.name.lowercase().replaceFirstChar { it.titlecase() }}"
+            toastMessages.value = "Allocated $amount sigils to ${type.name.lowercase().replaceFirstChar { it.titlecase() }}"
         }
     }
 

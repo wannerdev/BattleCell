@@ -554,6 +554,13 @@ private fun VictoryBanner(
                 text = "Status points +${result.statusReward} • XP +${result.experienceReward}. Rank ${result.newLevel}, total status ${result.newStatusTotal}, total XP ${result.newExperienceTotal}.",
                 style = MaterialTheme.typography.bodyMedium
             )
+            if (result.sapphirePotionFound) {
+                Text(
+                    text = "Recovered a sapphire potion from your foe.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()

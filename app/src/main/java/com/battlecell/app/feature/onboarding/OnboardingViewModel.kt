@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.battlecell.app.data.repository.PlayerRepository
 import com.battlecell.app.domain.model.PlayerCharacter
+import com.battlecell.app.domain.service.MissionEngine
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +39,7 @@ class OnboardingViewModel(
             else -> {
                 viewModelScope.launch {
                     _uiState.update { it.copy(isSaving = true, errorMessage = null) }
-                    val newPlayer = PlayerCharacter(name = trimmedName)
+                    val newPlayer = MissionEngine.bootstrap(PlayerCharacter(name = trimmedName))
                     playerRepository.upsert(newPlayer)
                     playerRepository.markOnboardingCompleted(true)
                     _events.send(OnboardingEvent.Completed)
