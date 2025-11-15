@@ -7,14 +7,14 @@ import org.junit.Test
 class PlayerCharacterTest {
 
     @Test
-    fun gainStatusPointsRaisesLevelAndAwardsSkillPoints() {
-        val character = PlayerCharacter(level = 1, statusPoints = 0, skillPoints = 0)
+    fun gainStatusPointsOnlyIncreasesStatusCurrency() {
+        val character = PlayerCharacter(level = 5, statusPoints = 10, skillPoints = 6)
 
         val updated = character.gainStatusPoints(12)
 
-        assertEquals(3, updated.level)
-        assertEquals(12, updated.statusPoints)
-        assertEquals(4, updated.skillPoints)
+        assertEquals(5, updated.level)
+        assertEquals(22, updated.statusPoints)
+        assertEquals(6, updated.skillPoints)
     }
 
     @Test

@@ -57,5 +57,5 @@
     <string name="search_last_seen_label">Last seen %1$s</string>
     <string name="search_battle_button">Challenge</string>
     <string name="search_tag_player">Player champion</string>
-    <string name="search_tag_npc">Generated knight</string>
+    <string name="search_tag_npc">Rival champion</string>
 </resources>

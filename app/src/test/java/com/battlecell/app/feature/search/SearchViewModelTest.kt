@@ -26,7 +26,8 @@ class SearchViewModelTest {
         val encounters = EncounterMerge.merge(
             existing = emptyMap(),
             snapshot = snapshot,
-            generator = generator
+            generator = generator,
+            player = null
         )
 
         assertEquals(3, encounters.size)

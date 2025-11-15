@@ -152,23 +152,23 @@ private fun BattleContent(
             )
         }
 
-        EngagementSummary(
-            comparison = uiState.comparison,
-            rewardPreview = uiState.statusRewardPreview
-        )
+          EngagementSummary(
+              comparison = uiState.comparison,
+              rewardPreview = uiState.rewardPreview
+          )
 
         when (val result = uiState.result) {
             is BattleViewModel.BattleResult.Victory -> VictoryBanner(result, onReset, onExit)
             is BattleViewModel.BattleResult.Defeat -> DefeatBanner(result, onReset, onExit)
             null -> when (uiState.comparison) {
-                BattleViewModel.StrengthComparison.PLAYER_ADVANTAGE -> AdvantageActions(onEngage, uiState.isProcessing, uiState.statusRewardPreview)
+                  BattleViewModel.StrengthComparison.PLAYER_ADVANTAGE -> AdvantageActions(onEngage, uiState.isProcessing, uiState.rewardPreview)
                 BattleViewModel.StrengthComparison.NPC_ADVANTAGE -> DisadvantageNotice(onExit)
                 BattleViewModel.StrengthComparison.TIE -> RouletteSection(
                     rouletteState = uiState.roulette,
                     onBegin = onBeginRoulette,
                     onPullChains = onPullChains,
                     isProcessing = uiState.isProcessing,
-                    rewardPreview = uiState.statusRewardPreview
+                      rewardPreview = uiState.rewardPreview
                 )
                 BattleViewModel.StrengthComparison.UNDECIDED -> {}
             }
@@ -268,17 +268,18 @@ private fun ParticipantCard(
 @Composable
 private fun EngagementSummary(
     comparison: BattleViewModel.StrengthComparison,
-    rewardPreview: Int
+    rewardPreview: BattleViewModel.BattleRewards
 ) {
+    val payout = rewardSummary(rewardPreview)
     val message = when (comparison) {
         BattleViewModel.StrengthComparison.PLAYER_ADVANTAGE ->
-            "Your gauntlet outweighs theirs. Press the attack for +$rewardPreview status sigils."
+            "Your gauntlet outweighs theirs. Press the attack for $payout."
 
         BattleViewModel.StrengthComparison.NPC_ADVANTAGE ->
             "The rival's strength eclipses yours. A frontal assault will likely fail."
 
         BattleViewModel.StrengthComparison.TIE ->
-            "Strengths are matched. Invoke the chain duel for a chance at +$rewardPreview status sigils."
+            "Strengths are matched. Invoke the chain duel for a chance at $payout."
 
         BattleViewModel.StrengthComparison.UNDECIDED -> "Sizing up the challenger..."
     }
@@ -293,7 +294,7 @@ private fun EngagementSummary(
 private fun AdvantageActions(
     onEngage: () -> Unit,
     isProcessing: Boolean,
-    rewardPreview: Int
+    rewardPreview: BattleViewModel.BattleRewards
 ) {
     Button(
         onClick = onEngage,
@@ -310,7 +311,7 @@ private fun AdvantageActions(
             )
             Spacer(modifier = Modifier.width(8.dp))
         }
-        Text(text = "Overpower and seize +$rewardPreview")
+        Text(text = "Overpower for ${rewardSummary(rewardPreview)}")
     }
 }
 
@@ -349,7 +350,7 @@ private fun RouletteSection(
     onBegin: () -> Unit,
     onPullChains: () -> Unit,
     isProcessing: Boolean,
-    rewardPreview: Int
+    rewardPreview: BattleViewModel.BattleRewards
 ) {
     Column(
         modifier = Modifier
@@ -386,7 +387,7 @@ private fun RouletteSection(
                         contentPadding = PaddingValues(vertical = 12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(text = "Initiate duel (+$rewardPreview)")
+                        Text(text = "Initiate duel (${rewardSummary(rewardPreview)})")
                     }
                 } else {
                     RouletteArena(
@@ -523,6 +524,9 @@ private fun RouletteHistoryRow(event: BattleViewModel.RouletteTurnResult) {
     )
 }
 
+private fun rewardSummary(rewards: BattleViewModel.BattleRewards): String =
+    "+${rewards.statusReward} status points • +${rewards.experienceReward} XP"
+
 @Composable
 private fun VictoryBanner(
     result: BattleViewModel.BattleResult.Victory,
@@ -547,7 +551,7 @@ private fun VictoryBanner(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Status sigils +${result.statusReward}. New rank ${result.newLevel}, total sigils ${result.newStatusTotal}.",
+                text = "Status points +${result.statusReward} • XP +${result.experienceReward}. Rank ${result.newLevel}, total status ${result.newStatusTotal}, total XP ${result.newExperienceTotal}.",
                 style = MaterialTheme.typography.bodyMedium
             )
             Row(

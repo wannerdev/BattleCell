@@ -258,7 +258,9 @@ private fun RowHeader(profile: EncounterProfile) {
             text = if (profile.isPlayer) {
                 stringResource(id = R.string.search_tag_player)
             } else {
-                stringResource(id = R.string.search_tag_npc)
+                val title = profile.title.takeIf { it.isNotBlank() }
+                    ?: stringResource(id = R.string.search_tag_npc)
+                title
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant

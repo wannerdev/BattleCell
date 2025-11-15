@@ -4,6 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.UUID
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 @Serializable
 data class PlayerCharacter(
@@ -28,9 +29,19 @@ data class PlayerCharacter(
         get() = victories + defeats
 
     fun gainExperience(amount: Int): PlayerCharacter {
+        if (amount == 0) return this
         val newExperience = max(0, experience + amount)
+        val newLevel = levelForExperience(newExperience)
+        val levelDelta = newLevel - level
+        val updatedSkillPoints = if (levelDelta > 0) {
+            skillPoints + levelDelta * SKILL_POINTS_PER_LEVEL
+        } else {
+            skillPoints
+        }
         return copy(
             experience = newExperience,
+            level = newLevel,
+            skillPoints = updatedSkillPoints,
             updatedAtEpoch = System.currentTimeMillis()
         )
     }
@@ -113,21 +124,33 @@ data class PlayerCharacter(
 
     fun gainStatusPoints(amount: Int): PlayerCharacter {
         if (amount <= 0) return this
-        val newStatus = statusPoints + amount
-        val newLevel = statusLevel(newStatus)
-        val levelDelta = newLevel - level
-        val newSkillPoints = if (levelDelta > 0) skillPoints + (levelDelta * 2) else skillPoints
         return copy(
-            statusPoints = newStatus,
-            level = newLevel,
-            skillPoints = newSkillPoints,
+            statusPoints = statusPoints + amount,
             updatedAtEpoch = System.currentTimeMillis()
         )
     }
 
-    private fun statusLevel(status: Int): Int = 1 + status / STATUS_POINTS_PER_LEVEL
-
     companion object {
-        private const val STATUS_POINTS_PER_LEVEL = 6
+        private const val SKILL_POINTS_PER_LEVEL = 2
+        private const val BASE_EXPERIENCE_TO_LEVEL = 120
+        private const val EXPERIENCE_MIN_STEP = 30
+        private const val EXPERIENCE_GROWTH_MULTIPLIER = 1.35
+
+        private fun levelForExperience(totalExperience: Int): Int {
+            var remaining = totalExperience
+            var level = 1
+            var requirement = BASE_EXPERIENCE_TO_LEVEL
+            while (remaining >= requirement) {
+                remaining -= requirement
+                level++
+                requirement = nextRequirement(requirement)
+            }
+            return level
+        }
+
+        private fun nextRequirement(current: Int): Int {
+            val grown = (current * EXPERIENCE_GROWTH_MULTIPLIER).roundToInt()
+            return max(grown, current + EXPERIENCE_MIN_STEP)
+        }
     }
 }
