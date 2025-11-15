@@ -82,6 +82,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.random.Random
 
 @Composable
@@ -267,16 +268,6 @@ private fun BugHuntGame(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Header(definition = definition, state = state, elapsedMillis = elapsedMillis)
-        val buffTick = buffClock
-        val jumpLabels = remember(buffTick, jumpBuffState) {
-            val now = buffTick
-            buildList {
-                if (now < jumpBuffState.featherUntil) add("Featherfall")
-                if (now < jumpBuffState.springUntil) add("Rune spring")
-                if (jumpBuffState.hasAegis) add("Aegis ready")
-            }
-        }
-        PowerUpTicker(labels = jumpLabels)
 
         BoxWithConstraints(
             modifier = Modifier
@@ -802,6 +793,7 @@ private fun SubwayRunGame(
     val runnerPowerUps = remember(definition.id + "_runner_orbs") { mutableStateListOf<RunnerPowerOrb>() }
     var runnerBuffState by remember(definition.id + "_runner_buff") { mutableStateOf(RunnerBuffState()) }
     var lastRunnerOrbSpawn by remember(definition.id + "_runner_spawn") { mutableLongStateOf(0L) }
+    var runnerBuffClock by remember(definition.id + "_runner_clock") { mutableLongStateOf(0L) }
 
     Column(
         modifier = Modifier
@@ -810,8 +802,9 @@ private fun SubwayRunGame(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Header(definition = definition, state = state, elapsedMillis = elapsedMillis)
-        val runnerBuffLabels = remember(runnerBuffState) {
-            val now = SystemClock.elapsedRealtime()
+        val buffTick = runnerBuffClock
+        val runnerBuffLabels = remember(buffTick, runnerBuffState) {
+            val now = buffTick
             buildList {
                 if (runnerBuffState.shieldCharges > 0) add("Bulwark x${runnerBuffState.shieldCharges}")
                 if (now < runnerBuffState.tempoUntil) add("Tempo veil")
@@ -967,13 +960,13 @@ private fun SubwayRunGame(
                 }
             }
 
-            LaunchedEffect(gamePhase, runId, "jumpBuffTicker") {
+            LaunchedEffect(gamePhase, runId, "runnerBuffTicker") {
                 if (gamePhase != GamePhase.Playing) {
-                    buffClock = SystemClock.elapsedRealtime()
+                    runnerBuffClock = SystemClock.elapsedRealtime()
                     return@LaunchedEffect
                 }
                 while (isActive) {
-                    buffClock = SystemClock.elapsedRealtime()
+                    runnerBuffClock = SystemClock.elapsedRealtime()
                     delay(500L)
                 }
             }
@@ -1130,7 +1123,7 @@ private fun TetrisSiegeGame(
 
     fun ensureSelectionPool() {
         while (selectionPool.size < 3) {
-            selectionPool += randomTetrominoType()
+            selectionPool.add(randomTetrominoType())
         }
     }
 
@@ -1139,7 +1132,7 @@ private fun TetrisSiegeGame(
             board[i] = 0
         }
         selectionPool.clear()
-        repeat(3) { selectionPool += randomTetrominoType() }
+        repeat(3) { selectionPool.add(randomTetrominoType()) }
         currentPiece = null
         pendingSelection = false
         linesCleared = 0
@@ -1312,7 +1305,7 @@ private fun TetrisSiegeGame(
         ) {
             val widthPx = with(density) { maxWidth.toPx() }
             val heightPx = with(density) { maxHeight.toPx() }
-            val cellSize = min(widthPx / cols, heightPx / rows)
+            val cellSize = min(widthPx / cols.toFloat(), heightPx / rows.toFloat())
 
             Canvas(
                 modifier = Modifier
@@ -1611,33 +1604,37 @@ private fun RuneMatchGame(
                 .weight(1f)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF1E140C))
-                .pointerInput(gamePhase, runId, selection) {
-                    detectTapGestures { offset ->
-                        if (gamePhase != GamePhase.Playing) return@detectTapGestures
-                        val cellSize = size.width / cols
-                        val col = (offset.x / cellSize).toInt().coerceIn(0, cols - 1)
-                        val row = (offset.y / cellSize).toInt().coerceIn(0, rows - 1)
-                        handleSwap(RuneSelection(row, col))
-                    }
-                }
         ) {
-            val cellSize = with(density) { (maxWidth / cols).toPx() }
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawRect(color = Color(0xFF1E140C), size = size)
-                for (row in 0 until rows) {
-                    for (col in 0 until cols) {
-                        val value = board[boardIndex(row, col)]
-                        val color = if (value >= 0) runePalette[value % runePalette.size] else Color.Transparent
-                        drawRect(
-                            color = color,
-                            topLeft = Offset(col * cellSize, row * cellSize),
-                            size = Size(cellSize - 6f, cellSize - 6f),
-                            style = if (selection?.row == row && selection?.col == col) {
-                                Stroke(width = 4f)
-                            } else {
-                                Stroke(width = 0f)
-                            }
-                        )
+            val cellSizePx = with(density) { (maxWidth / cols.toFloat()).toPx() }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(gamePhase, runId, selection, cellSizePx) {
+                        detectTapGestures { offset ->
+                            if (gamePhase != GamePhase.Playing) return@detectTapGestures
+                            val col = (offset.x / cellSizePx).toInt().coerceIn(0, cols - 1)
+                            val row = (offset.y / cellSizePx).toInt().coerceIn(0, rows - 1)
+                            handleSwap(RuneSelection(row, col))
+                        }
+                    }
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawRect(color = Color(0xFF1E140C), size = size)
+                    for (row in 0 until rows) {
+                        for (col in 0 until cols) {
+                            val value = board[boardIndex(row, col)]
+                            val color = if (value >= 0) runePalette[value % runePalette.size] else Color.Transparent
+                            drawRect(
+                                color = color,
+                                topLeft = Offset(col * cellSizePx, row * cellSizePx),
+                                size = Size(cellSizePx - 6f, cellSizePx - 6f),
+                                style = if (selection?.row == row && selection?.col == col) {
+                                    Stroke(width = 4f)
+                                } else {
+                                    Stroke(width = 0f)
+                                }
+                            )
+                        }
                     }
                 }
             }

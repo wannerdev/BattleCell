@@ -176,6 +176,18 @@ class TrainingGameViewModel(
                 val stamina = (elapsedMillis / 20000L).coerceAtLeast(0)
                 max(1, stamina.toInt() + if (didWin) 1 else 0)
             }
+
+            TrainingGameType.TETRIS_SIEGE -> {
+                val target = definition.behavior.targetScore.takeIf { it > 0 } ?: 12
+                val ratio = (score.toFloat() / target).coerceIn(0f, 1.5f)
+                max(1, (ratio * 6f).roundToInt())
+            }
+
+            TrainingGameType.RUNE_MATCH -> {
+                val target = definition.behavior.targetScore.takeIf { it > 0 } ?: 800
+                val ratio = (score.toFloat() / target).coerceIn(0f, 1.5f)
+                max(1, (ratio * 5f).roundToInt())
+            }
         }
         return max(1, (raw * difficulty.attributeFactor()).roundToInt())
     }
