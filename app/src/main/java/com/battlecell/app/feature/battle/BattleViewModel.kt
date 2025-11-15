@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 class BattleViewModel(
@@ -47,16 +48,16 @@ class BattleViewModel(
         val isProcessing = tuple[4] as Boolean
         val message = tuple[5] as String?
         val comparison = computeComparison(player, opponent)
-        BattleUiState(
-            player = player,
-            opponent = opponent,
-            comparison = comparison,
-            roulette = roulette,
-            result = result,
-            isProcessing = isProcessing,
-            message = message,
-            statusRewardPreview = previewReward(comparison, player, opponent)
-        )
+            BattleUiState(
+                player = player,
+                opponent = opponent,
+                comparison = comparison,
+                roulette = roulette,
+                result = result,
+                isProcessing = isProcessing,
+                message = message,
+                rewardPreview = previewRewards(comparison, player, opponent)
+            )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -72,7 +73,7 @@ class BattleViewModel(
         val player = state.player ?: return
         val opponent = state.opponent ?: return
         when (state.comparison) {
-            StrengthComparison.PLAYER_ADVANTAGE -> resolveVictory(player, opponent, previewReward(state.comparison, player, opponent))
+              StrengthComparison.PLAYER_ADVANTAGE -> resolveVictory(player, opponent, previewRewards(state.comparison, player, opponent))
             StrengthComparison.NPC_ADVANTAGE -> finalizeDefeat(player, "The rival's strength overwhelmed you.")
             StrengthComparison.TIE -> startRoulette()
             StrengthComparison.UNDECIDED -> {}
@@ -99,7 +100,7 @@ class BattleViewModel(
         val current = rouletteState.value ?: return
         if (current.currentTurn != RouletteTurn.PLAYER || current.resolving) return
 
-        val reward = previewReward(comparison, player, opponent)
+          val reward = previewRewards(comparison, player, opponent)
         viewModelScope.launch {
             rouletteState.value = current.copy(resolving = true)
             delay(320)
@@ -145,23 +146,26 @@ class BattleViewModel(
     private fun resolveVictory(
         player: PlayerCharacter,
         opponent: EncounterProfile,
-        reward: Int
+          reward: BattleRewards
     ) {
         if (processingState.value) return
         viewModelScope.launch {
             processingState.value = true
-            val updated = player
-                .recordVictory()
-                .gainStatusPoints(reward)
+              val updated = player
+                  .recordVictory()
+                  .gainExperience(reward.experienceReward)
+                  .gainStatusPoints(reward.statusReward)
             playerRepository.upsert(updated)
             resultState.value = BattleResult.Victory(
-                statusReward = reward,
+                  statusReward = reward.statusReward,
+                  experienceReward = reward.experienceReward,
                 newLevel = updated.level,
-                newStatusTotal = updated.statusPoints
+                  newStatusTotal = updated.statusPoints,
+                  newExperienceTotal = updated.experience
             )
             rouletteState.value = null
             processingState.value = false
-            toastMessage.value = "Victory! Status sigils +$reward"
+              toastMessage.value = "Victory! +${reward.experienceReward} XP • +${reward.statusReward} status points"
         }
     }
 
@@ -195,18 +199,34 @@ class BattleViewModel(
         }
     }
 
-    private fun previewReward(
+      private fun previewRewards(
         comparison: StrengthComparison,
         player: PlayerCharacter?,
         opponent: EncounterProfile?
-    ): Int {
-        val playerStrength = player?.attributes?.power ?: return 0
-        val opponentStrength = opponent?.attributes?.power ?: return 0
+      ): BattleRewards {
+          val playerStrength = player?.attributes?.power ?: return BattleRewards()
+          val opponentStrength = opponent?.attributes?.power ?: return BattleRewards()
+          val opponentRating = opponent.attributes.combatRating
+          val baseStatus = when (comparison) {
+              StrengthComparison.PLAYER_ADVANTAGE -> max(3, (playerStrength - opponentStrength) + 2)
+              StrengthComparison.TIE -> max(4, playerStrength / 2 + 2)
+              else -> 0
+          }
+          val baseExperience = max(25, opponentRating / 3)
+          val experienceReward = when (comparison) {
+              StrengthComparison.PLAYER_ADVANTAGE -> baseExperience
+              StrengthComparison.TIE -> (baseExperience * 1.25).roundToInt()
+              else -> 0
+          }
         return when (comparison) {
-            StrengthComparison.PLAYER_ADVANTAGE -> max(3, (playerStrength - opponentStrength) + 2)
-            StrengthComparison.TIE -> max(4, playerStrength / 2 + 2)
-            StrengthComparison.NPC_ADVANTAGE -> 0
-            StrengthComparison.UNDECIDED -> 0
+              StrengthComparison.PLAYER_ADVANTAGE,
+              StrengthComparison.TIE -> BattleRewards(
+                  statusReward = baseStatus,
+                  experienceReward = experienceReward
+              )
+
+              StrengthComparison.NPC_ADVANTAGE,
+              StrengthComparison.UNDECIDED -> BattleRewards()
         }
     }
 
@@ -223,7 +243,7 @@ class BattleViewModel(
         val result: BattleResult? = null,
         val isProcessing: Boolean = false,
         val message: String? = null,
-        val statusRewardPreview: Int = 0
+          val rewardPreview: BattleRewards = BattleRewards()
     ) {
         val isLoading: Boolean
             get() = player == null || opponent == null
@@ -243,11 +263,13 @@ class BattleViewModel(
     )
 
     sealed interface BattleResult {
-        data class Victory(
-            val statusReward: Int,
-            val newLevel: Int,
-            val newStatusTotal: Int
-        ) : BattleResult
+          data class Victory(
+              val statusReward: Int,
+              val experienceReward: Int,
+              val newLevel: Int,
+              val newStatusTotal: Int,
+              val newExperienceTotal: Int
+          ) : BattleResult
 
         data class Defeat(val reason: String) : BattleResult
     }
@@ -259,7 +281,12 @@ class BattleViewModel(
         UNDECIDED
     }
 
-    companion object {
+      data class BattleRewards(
+          val statusReward: Int = 0,
+          val experienceReward: Int = 0
+      )
+
+      companion object {
         fun provideFactory(
             playerRepository: PlayerRepository,
             encounterRepository: EncounterRepository,

@@ -8,6 +8,7 @@ import kotlin.math.max
 data class EncounterProfile(
     @SerialName("id") val id: String,
     @SerialName("display_name") val displayName: String,
+    @SerialName("title") val title: String = "",
     @SerialName("is_player") val isPlayer: Boolean,
     @SerialName("attributes") val attributes: CharacterAttributes,
     @SerialName("power_score") val powerScore: Int,

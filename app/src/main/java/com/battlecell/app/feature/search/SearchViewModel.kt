@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.battlecell.app.data.nearby.NearbyDiscoveryManager
 import com.battlecell.app.data.nearby.NearbyDiscoverySnapshot
 import com.battlecell.app.data.repository.EncounterRepository
+import com.battlecell.app.data.repository.PlayerRepository
 import com.battlecell.app.domain.model.EncounterProfile
+import com.battlecell.app.domain.model.PlayerCharacter
 import com.battlecell.app.domain.service.EncounterGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,11 +20,17 @@ import kotlinx.coroutines.withContext
 class SearchViewModel(
     private val encounterRepository: EncounterRepository,
     private val nearbyDiscoveryManager: NearbyDiscoveryManager,
-    private val encounterGenerator: EncounterGenerator
+    private val encounterGenerator: EncounterGenerator,
+    private val playerRepository: PlayerRepository
 ) : ViewModel() {
 
     private val isScanning = MutableStateFlow(false)
     private val toastMessage = MutableStateFlow<String?>(null)
+    private val playerState = playerRepository.playerStream.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = null
+    )
 
     val uiState = combine(
         encounterRepository.encounterStream,
@@ -48,7 +56,7 @@ class SearchViewModel(
                 val snapshot = withContext(Dispatchers.IO) {
                     nearbyDiscoveryManager.discover()
                 }
-                val encounters = synthesizeEncounters(snapshot)
+                val encounters = synthesizeEncounters(snapshot, playerState.value)
                 encounterRepository.replaceAll(encounters)
                 toastMessage.value = when {
                     encounters.isEmpty() -> "No rival banners answered the horn."
@@ -67,8 +75,11 @@ class SearchViewModel(
         toastMessage.value = null
     }
 
-    internal fun synthesizeEncounters(snapshot: NearbyDiscoverySnapshot): List<EncounterProfile> {
+    internal fun synthesizeEncounters(
+        snapshot: NearbyDiscoverySnapshot,
+        player: PlayerCharacter? = playerState.value
+    ): List<EncounterProfile> {
         val existing = uiState.value.encounters.associateBy { it.deviceFingerprint }
-        return EncounterMerge.merge(existing, snapshot, encounterGenerator)
+        return EncounterMerge.merge(existing, snapshot, encounterGenerator, player)
     }
 }

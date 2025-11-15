@@ -35,7 +35,8 @@ class BattleCellViewModelFactory(
                 SearchViewModel(
                     encounterRepository = appContainer.encounterRepository,
                     nearbyDiscoveryManager = appContainer.nearbyDiscoveryManager,
-                    encounterGenerator = appContainer.encounterGenerator
+                    encounterGenerator = appContainer.encounterGenerator,
+                    playerRepository = appContainer.playerRepository
                 )
 
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
