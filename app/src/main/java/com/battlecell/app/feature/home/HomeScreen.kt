@@ -1,5 +1,6 @@
 package com.battlecell.app.feature.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,18 +13,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SportsMartialArts
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,16 +37,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.battlecell.app.R
-import com.battlecell.app.domain.model.AttributeType
 import com.battlecell.app.domain.model.PlayerCharacter
+import com.battlecell.app.domain.model.mission.MissionStatus
 
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun HomeRoute(
     viewModel: HomeViewModel,
-    onNavigateToTraining: () -> Unit,
-    onNavigateToSearch: () -> Unit,
-    onNavigateToProfile: () -> Unit
+    onNavigateToWarCouncil: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -69,7 +64,10 @@ fun HomeRoute(
             )
             uiState.character?.let { character ->
                 HeroSummaryCard(character = character)
-                SkillPoolCard(character = character)
+                MissionPreviewCard(
+                    missions = uiState.missions,
+                    onNavigateToWarCouncil = onNavigateToWarCouncil
+                )
                 QuestBoardCard()
             }
             uiState.errorMessage?.let { error ->
@@ -151,14 +149,24 @@ private fun HeroSummaryCard(character: PlayerCharacter) {
 }
 
 @Composable
-private fun SkillPoolCard(character: PlayerCharacter) {
+private fun MissionPreviewCard(
+    missions: List<HomeMissionItem>,
+    onNavigateToWarCouncil: () -> Unit
+) {
+    val prioritized = missions.sortedWith(
+        compareBy<HomeMissionItem> { missionStatusPriority(it.status) }
+            .thenBy { it.title }
+    )
+    val showcase = prioritized.take(3)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onNavigateToWarCouncil),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        shape = RoundedCornerShape(18.dp)
+        )
     ) {
         Column(
             modifier = Modifier
@@ -166,76 +174,79 @@ private fun SkillPoolCard(character: PlayerCharacter) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = stringResource(id = R.string.home_skill_reserves_title),
-                style = MaterialTheme.typography.titleMedium
-            )
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                SkillRow(
-                    icon = Icons.Default.Inventory,
-                    label = stringResource(id = R.string.home_skill_general_label),
-                    value = character.skillPoints
+                Text(
+                    text = stringResource(id = R.string.home_missions_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
-                SkillRow(
-                    icon = Icons.Default.SportsMartialArts,
-                    label = stringResource(id = R.string.home_skill_power_label),
-                    value = character.variantSkillPoints(AttributeType.POWER)
-                )
-                SkillRow(
-                    icon = Icons.Default.DirectionsRun,
-                    label = stringResource(id = R.string.home_skill_agility_label),
-                    value = character.variantSkillPoints(AttributeType.AGILITY)
-                )
-                SkillRow(
-                    icon = Icons.Default.FitnessCenter,
-                    label = stringResource(id = R.string.home_skill_endurance_label),
-                    value = character.variantSkillPoints(AttributeType.ENDURANCE)
-                )
-                SkillRow(
-                    icon = Icons.Default.AutoFixHigh,
-                    label = stringResource(id = R.string.home_skill_focus_label),
-                    value = character.variantSkillPoints(AttributeType.FOCUS)
+                Icon(
+                    imageVector = Icons.Default.SportsMartialArts,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
             Text(
-                text = stringResource(id = R.string.home_skill_footer),
+                text = stringResource(id = R.string.home_missions_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (showcase.isEmpty()) {
+                Text(
+                    text = stringResource(id = R.string.home_missions_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                showcase.forEach { mission ->
+                    MissionPreviewRow(mission = mission)
+                }
+                if (missions.size > showcase.size) {
+                    Text(
+                        text = stringResource(id = R.string.home_missions_more, missions.size - showcase.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SkillRow(
-    icon: ImageVector,
-    label: String,
-    value: Int
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Column(
-            modifier = Modifier.weight(1f)
+private fun MissionPreviewRow(mission: HomeMissionItem) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium
+                text = mission.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = stringResource(id = R.string.home_skill_points_suffix, value),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = missionStatusLabel(mission.status),
+                style = MaterialTheme.typography.labelMedium,
+                color = missionStatusColor(mission.status)
             )
         }
+        Text(
+            text = mission.condition,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        LinearProgressIndicator(
+            progress = mission.progressFraction,
+            modifier = Modifier.fillMaxWidth(),
+            color = missionStatusColor(mission.status),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     }
 }
 
@@ -308,6 +319,29 @@ private fun QuestLine(
             )
         }
     }
+}
+
+private fun missionStatusPriority(status: MissionStatus): Int = when (status) {
+    MissionStatus.ACTIVE -> 0
+    MissionStatus.DONE -> 1
+    MissionStatus.FAILED -> 2
+    MissionStatus.DEACTIVATED -> 3
+}
+
+@Composable
+private fun missionStatusColor(status: MissionStatus) = when (status) {
+    MissionStatus.ACTIVE -> MaterialTheme.colorScheme.primary
+    MissionStatus.DONE -> MaterialTheme.colorScheme.tertiary
+    MissionStatus.FAILED -> MaterialTheme.colorScheme.error
+    MissionStatus.DEACTIVATED -> MaterialTheme.colorScheme.outline
+}
+
+@Composable
+private fun missionStatusLabel(status: MissionStatus): String = when (status) {
+    MissionStatus.ACTIVE -> stringResource(id = R.string.mission_status_active)
+    MissionStatus.DONE -> stringResource(id = R.string.mission_status_done)
+    MissionStatus.FAILED -> stringResource(id = R.string.mission_status_failed)
+    MissionStatus.DEACTIVATED -> stringResource(id = R.string.mission_status_locked)
 }
 
 @Composable

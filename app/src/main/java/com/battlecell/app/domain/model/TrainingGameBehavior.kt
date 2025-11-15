@@ -9,5 +9,8 @@ data class TrainingGameBehavior(
     val visibleWindowMillis: Long = 300L,
     val invisibleWindowMillis: Long = 600L,
     val bugRadiusDp: Float = 28f,
-    val targetScore: Int = 0
+    val targetScore: Int = 0,
+    val boardWidth: Int = 0,
+    val boardHeight: Int = 0,
+    val moveLimit: Int = 0
 )

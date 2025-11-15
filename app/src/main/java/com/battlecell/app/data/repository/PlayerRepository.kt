@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import com.battlecell.app.data.local.BattleCellPreferencesKeys
 import com.battlecell.app.domain.model.PlayerCharacter
+import com.battlecell.app.domain.service.MissionEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
@@ -15,10 +16,12 @@ class PlayerRepository(
     private val json: Json
 ) {
 
-    val playerStream: Flow<PlayerCharacter?> = dataStore.data.map { preferences ->
-        preferences[BattleCellPreferencesKeys.PLAYER_PROFILE]
-            ?.let { json.decodeFromString(PlayerCharacter.serializer(), it) }
-    }
+    val playerStream: Flow<PlayerCharacter?> = dataStore.data
+        .map { preferences ->
+            preferences[BattleCellPreferencesKeys.PLAYER_PROFILE]
+                ?.let { json.decodeFromString(PlayerCharacter.serializer(), it) }
+        }
+        .map { player -> player?.let { MissionEngine.bootstrap(it) } }
 
     val onboardingCompleted: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[BattleCellPreferencesKeys.ONBOARDING_COMPLETED] ?: false

@@ -10,6 +10,7 @@ sealed class BattleCellDestination(val route: String) {
     }
     data object Search : BattleCellDestination("search")
     data object Profile : BattleCellDestination("profile")
+    data object WarCouncil : BattleCellDestination("war-council")
     data object Battle : BattleCellDestination("battle/{opponentId}") {
         const val ARG_OPPONENT_ID = "opponentId"
         fun createRoute(opponentId: String) = "battle/$opponentId"

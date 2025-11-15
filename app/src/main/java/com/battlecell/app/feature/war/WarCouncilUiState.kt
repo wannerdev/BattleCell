@@ -1,16 +1,16 @@
-package com.battlecell.app.feature.home
+package com.battlecell.app.feature.war
 
 import com.battlecell.app.domain.model.PlayerCharacter
 import com.battlecell.app.domain.model.mission.MissionStatus
 
-data class HomeUiState(
+data class WarCouncilUiState(
     val character: PlayerCharacter? = null,
-    val missions: List<HomeMissionItem> = emptyList(),
+    val missions: List<MissionDetailItem> = emptyList(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null
 )
 
-data class HomeMissionItem(
+data class MissionDetailItem(
     val id: String,
     val title: String,
     val description: String,
@@ -18,7 +18,8 @@ data class HomeMissionItem(
     val reward: String?,
     val status: MissionStatus,
     val progress: Int,
-    val target: Int
+    val target: Int,
+    val notes: String?
 ) {
     val progressFraction: Float
         get() = if (target <= 0) 0f else (progress.toFloat() / target).coerceIn(0f, 1f)

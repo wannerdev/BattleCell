@@ -3,6 +3,7 @@ package com.battlecell.app.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothSearching
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SportsMartialArts
@@ -36,6 +37,8 @@ import com.battlecell.app.feature.search.SearchRoute
 import com.battlecell.app.feature.train.TrainingGameRoute
 import com.battlecell.app.feature.train.TrainingRoute
 import com.battlecell.app.feature.train.TrainingGameViewModel
+import com.battlecell.app.feature.war.WarCouncilRoute
+import com.battlecell.app.feature.war.WarCouncilViewModel
 import com.battlecell.app.navigation.BattleCellDestination
 
 @Composable
@@ -97,10 +100,15 @@ fun BattleCellApp(
                 )
                 HomeRoute(
                     viewModel = viewModel,
-                    onNavigateToTraining = { appState.navigateTo(BattleCellDestination.Training) },
-                    onNavigateToSearch = { appState.navigateTo(BattleCellDestination.Search) },
-                    onNavigateToProfile = { appState.navigateTo(BattleCellDestination.Profile) }
+                    onNavigateToWarCouncil = { appState.navigateTo(BattleCellDestination.WarCouncil) }
                 )
+            }
+            composable(BattleCellDestination.WarCouncil.route) {
+                val viewModel = viewModel(
+                    factory = viewModelFactory,
+                    modelClass = WarCouncilViewModel::class.java
+                )
+                WarCouncilRoute(viewModel = viewModel)
             }
             composable(BattleCellDestination.Training.route) {
                 val viewModel = viewModel(
@@ -194,6 +202,7 @@ private fun BattleCellBottomBar(
         appState.topLevelDestinations.forEach { destination ->
             val label = when (destination) {
                 BattleCellDestination.Home -> "Hall"
+                BattleCellDestination.WarCouncil -> "Council"
                 BattleCellDestination.Training -> "Trials"
                 BattleCellDestination.Search -> "Horn"
                 BattleCellDestination.Profile -> "Chronicle"
@@ -201,6 +210,7 @@ private fun BattleCellBottomBar(
             }
             val icon = when (destination) {
                 BattleCellDestination.Home -> Icons.Default.Home
+                BattleCellDestination.WarCouncil -> Icons.Default.Flag
                 BattleCellDestination.Training -> Icons.Default.SportsMartialArts
                 BattleCellDestination.Search -> Icons.Default.BluetoothSearching
                 BattleCellDestination.Profile -> Icons.Default.Person

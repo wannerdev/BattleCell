@@ -7,8 +7,11 @@ import com.battlecell.app.data.nearby.NearbyDiscoverySnapshot
 import com.battlecell.app.data.repository.EncounterRepository
 import com.battlecell.app.data.repository.PlayerRepository
 import com.battlecell.app.domain.model.EncounterProfile
+import com.battlecell.app.domain.model.EncounterArchetype
 import com.battlecell.app.domain.model.PlayerCharacter
 import com.battlecell.app.domain.service.EncounterGenerator
+import com.battlecell.app.domain.service.MissionEngine
+import com.battlecell.app.domain.model.mission.MissionEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,12 +38,14 @@ class SearchViewModel(
     val uiState = combine(
         encounterRepository.encounterStream,
         isScanning,
-        toastMessage
-    ) { encounters, scanning, message ->
+        toastMessage,
+        playerState
+    ) { encounters, scanning, message, player ->
         SearchUiState(
             encounters = encounters.sortedByDescending { it.lastSeenEpoch },
             isScanning = scanning,
-            message = message
+            message = message,
+            player = player
         )
     }.stateIn(
         scope = viewModelScope,
@@ -58,6 +63,7 @@ class SearchViewModel(
                 }
                 val encounters = synthesizeEncounters(snapshot, playerState.value)
                 encounterRepository.replaceAll(encounters)
+                updateMissionsAfterScan(encounters)
                 toastMessage.value = when {
                     encounters.isEmpty() -> "No rival banners answered the horn."
                     encounters.size == 1 -> "One challenger stirs nearby."
@@ -75,11 +81,28 @@ class SearchViewModel(
         toastMessage.value = null
     }
 
+    fun lockEncounter(profile: EncounterProfile) {
+        viewModelScope.launch {
+            encounterRepository.upsert(profile.copy(isChallenged = true))
+        }
+    }
+
     internal fun synthesizeEncounters(
         snapshot: NearbyDiscoverySnapshot,
         player: PlayerCharacter? = playerState.value
     ): List<EncounterProfile> {
         val existing = uiState.value.encounters.associateBy { it.deviceFingerprint }
         return EncounterMerge.merge(existing, snapshot, encounterGenerator, player)
+    }
+
+    private suspend fun updateMissionsAfterScan(encounters: List<EncounterProfile>) {
+        val player = playerState.value ?: return
+        var updated = MissionEngine.process(player, MissionEvent.HornSounded)
+        if (encounters.any { it.archetype == EncounterArchetype.DRAGON }) {
+            updated = MissionEngine.process(updated, MissionEvent.DragonSighted)
+        }
+        if (updated != player) {
+            playerRepository.upsert(updated)
+        }
     }
 }

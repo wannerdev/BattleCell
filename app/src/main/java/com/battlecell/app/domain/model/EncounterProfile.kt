@@ -14,7 +14,9 @@ data class EncounterProfile(
     @SerialName("power_score") val powerScore: Int,
     @SerialName("source") val source: EncounterSource,
     @SerialName("device_fingerprint") val deviceFingerprint: String,
-    @SerialName("last_seen_epoch") val lastSeenEpoch: Long = System.currentTimeMillis()
+    @SerialName("last_seen_epoch") val lastSeenEpoch: Long = System.currentTimeMillis(),
+    @SerialName("archetype") val archetype: EncounterArchetype = EncounterArchetype.OUTLAW,
+    @SerialName("is_challenged") val isChallenged: Boolean = false
 ) {
     val adjustedPower: Int
         get() = max(powerScore, attributes.combatRating)

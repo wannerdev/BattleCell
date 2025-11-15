@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.battlecell.app.R
+import com.battlecell.app.domain.model.EncounterArchetype
 import com.battlecell.app.domain.model.EncounterProfile
 import com.battlecell.app.domain.model.EncounterSource
 import java.text.SimpleDateFormat
@@ -160,7 +161,7 @@ fun SearchRoute(
                     contentPadding = PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    if (uiState.encounters.isEmpty()) {
+                      if (uiState.encounters.isEmpty()) {
                         item {
                             Text(
                                 text = stringResource(id = R.string.search_empty_state),
@@ -168,11 +169,45 @@ fun SearchRoute(
                             )
                         }
                     } else {
-                        items(uiState.encounters, key = { it.id }) { encounter ->
-                            EncounterCard(
-                                profile = encounter,
-                                onBattle = { onBattleRequested(encounter) }
-                            )
+                          items(uiState.encounters, key = { it.id }) { encounter ->
+                              val player = uiState.player
+                              val hasPotion = player?.inventory?.hasSapphirePotion == true
+                              val lockedByDragon = encounter.archetype == EncounterArchetype.DRAGON && !hasPotion
+                              val canChallenge = !encounter.isChallenged && !lockedByDragon
+                              val restrictionMessage = when {
+                                  encounter.isChallenged -> stringResource(id = R.string.search_locked_message)
+                                  lockedByDragon -> stringResource(id = R.string.search_dragon_locked)
+                                  else -> null
+                              }
+                              EncounterCard(
+                                  profile = encounter,
+                                  canChallenge = canChallenge,
+                                  restriction = restrictionMessage,
+                                  onBattle = {
+                                      when {
+                                          encounter.isChallenged -> {
+                                              coroutineScope.launch {
+                                                  snackbarHostState.showSnackbar(
+                                                      context.getString(R.string.search_locked_message)
+                                                  )
+                                              }
+                                          }
+
+                                          lockedByDragon -> {
+                                              coroutineScope.launch {
+                                                  snackbarHostState.showSnackbar(
+                                                      context.getString(R.string.search_dragon_warning)
+                                                  )
+                                              }
+                                          }
+
+                                          else -> {
+                                              viewModel.lockEncounter(encounter)
+                                              onBattleRequested(encounter)
+                                          }
+                                      }
+                                  }
+                              )
                         }
                     }
                 }
@@ -184,6 +219,8 @@ fun SearchRoute(
 @Composable
 private fun EncounterCard(
     profile: EncounterProfile,
+    canChallenge: Boolean,
+    restriction: String?,
     onBattle: () -> Unit
 ) {
     Card(
@@ -219,9 +256,18 @@ private fun EncounterCard(
             Button(
                 onClick = onBattle,
                 shape = RoundedCornerShape(12.dp),
+                enabled = canChallenge,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Text(text = stringResource(id = R.string.search_battle_button))
+            }
+            restriction?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier.padding(top = 6.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

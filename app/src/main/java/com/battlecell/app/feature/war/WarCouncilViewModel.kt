@@ -1,4 +1,4 @@
-package com.battlecell.app.feature.home
+package com.battlecell.app.feature.war
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,21 +8,20 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
-class HomeViewModel(
+class WarCouncilViewModel(
     playerRepository: PlayerRepository
 ) : ViewModel() {
 
     val uiState = playerRepository.playerStream
         .map { player ->
             if (player == null) {
-                HomeUiState(
-                    character = null,
-                    isLoading = false,
-                    errorMessage = "Create your hero to begin."
+                WarCouncilUiState(
+                    errorMessage = "Raise a hero to receive orders.",
+                    isLoading = false
                 )
             } else {
                 val missions = MissionEngine.entriesFor(player).map { (definition, state) ->
-                    HomeMissionItem(
+                    MissionDetailItem(
                         id = definition.id,
                         title = definition.title,
                         description = definition.description,
@@ -30,10 +29,11 @@ class HomeViewModel(
                         reward = definition.rewardDescription,
                         status = state.status,
                         progress = state.progress,
-                        target = state.target
+                        target = state.target,
+                        notes = state.notes
                     )
                 }
-                HomeUiState(
+                WarCouncilUiState(
                     character = player,
                     missions = missions,
                     isLoading = false
@@ -43,6 +43,6 @@ class HomeViewModel(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = HomeUiState(isLoading = true)
+            initialValue = WarCouncilUiState(isLoading = true)
         )
 }

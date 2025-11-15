@@ -80,6 +80,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.abs
 import kotlin.random.Random
 
 @Composable
@@ -96,7 +97,7 @@ fun TrainingGameRoute(
                 is TrainingGameEvent.Error -> snackbarHostState.showSnackbar(event.message)
                 TrainingGameEvent.Defeat -> snackbarHostState.showSnackbar("Challenge failed. Try again.")
                 is TrainingGameEvent.Victory -> snackbarHostState.showSnackbar(
-                    "Victory! +${event.result.experienceGain} XP • +${event.result.attributeSigilGain + event.result.bonusSigilGain} ${event.result.attributeType.name.lowercase()} sigils"
+                    "Victory! +${event.result.attributeSigilGain + event.result.bonusSigilGain} ${event.result.attributeType.name.lowercase()} sigils"
                 )
             }
         }
@@ -152,9 +153,26 @@ fun TrainingGameRoute(
                             onResetResult = viewModel::consumeResult,
                             onDifficultySelected = viewModel::setDifficulty
                         )
+
+                        TrainingGameType.TETRIS_SIEGE -> TetrisSiegeGame(
+                            state = uiState,
+                            onSubmitResult = submitResult,
+                            onExit = onExit,
+                            onResetResult = viewModel::consumeResult,
+                            onDifficultySelected = viewModel::setDifficulty
+                        )
+
+                        TrainingGameType.RUNE_MATCH -> RuneMatchGame(
+                            state = uiState,
+                            onSubmitResult = submitResult,
+                            onExit = onExit,
+                            onResetResult = viewModel::consumeResult,
+                            onDifficultySelected = viewModel::setDifficulty
+                        )
                     }
                 }
             }
+
         }
     }
 }
@@ -248,6 +266,16 @@ private fun BugHuntGame(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Header(definition = definition, state = state, elapsedMillis = elapsedMillis)
+        val buffTick = buffClock
+        val jumpLabels = remember(buffTick, jumpBuffState) {
+            val now = buffTick
+            buildList {
+                if (now < jumpBuffState.featherUntil) add("Featherfall")
+                if (now < jumpBuffState.springUntil) add("Rune spring")
+                if (jumpBuffState.hasAegis) add("Aegis ready")
+            }
+        }
+        PowerUpTicker(labels = jumpLabels)
 
         BoxWithConstraints(
             modifier = Modifier
@@ -368,6 +396,135 @@ private data class RunnerObstacle(
     val y: Float,
     val passed: Boolean
 )
+
+private data class TetrominoInstance(
+    val type: TetrominoType,
+    val rotation: Int,
+    val row: Int,
+    val col: Int
+)
+
+private enum class TetrominoType { I, O, T, L, J, S, Z }
+
+private data class JumpPowerOrb(
+    val id: Int,
+    val x: Float,
+    val y: Float,
+    val type: JumpPowerType
+)
+
+private enum class JumpPowerType { FEATHERFALL, RUNESPRING, SKYBRIDGE, SIGILBLOOM, AEGIS }
+
+private data class JumpBuffState(
+    val featherUntil: Long = 0L,
+    val springUntil: Long = 0L,
+    val hasAegis: Boolean = false
+)
+
+private data class RunnerPowerOrb(
+    val id: Int,
+    val lane: Int,
+    val y: Float,
+    val type: RunnerPowerType
+)
+
+private enum class RunnerPowerType { BULWARK, TEMPO_VEIL, BANNER_CHARGE, LANE_PULSE, STRIDE_SURGE }
+
+private data class RunnerBuffState(
+    val shieldCharges: Int = 0,
+    val tempoUntil: Long = 0L,
+    val strideUntil: Long = 0L
+)
+
+private data class RuneSelection(val row: Int, val col: Int)
+
+private val tetrominoShapes: Map<TetrominoType, List<List<Pair<Int, Int>>>> = mapOf(
+    TetrominoType.I to listOf(
+        listOf(0 to -1, 0 to 0, 0 to 1, 0 to 2),
+        listOf(-1 to 1, 0 to 1, 1 to 1, 2 to 1)
+    ),
+    TetrominoType.O to listOf(
+        listOf(0 to 0, 0 to 1, 1 to 0, 1 to 1)
+    ),
+    TetrominoType.T to listOf(
+        listOf(0 to -1, 0 to 0, 0 to 1, 1 to 0),
+        listOf(-1 to 0, 0 to 0, 1 to 0, 0 to 1),
+        listOf(0 to -1, -1 to 0, 0 to 0, 0 to 1),
+        listOf(-1 to 0, 0 to 0, 1 to 0, 0 to -1)
+    ),
+    TetrominoType.L to listOf(
+        listOf(0 to -1, 0 to 0, 0 to 1, 1 to -1),
+        listOf(-1 to 0, 0 to 0, 1 to 0, 1 to 1),
+        listOf(0 to -1, -1 to 1, 0 to 0, 0 to 1),
+        listOf(-1 to -1, -1 to 0, 0 to 0, 1 to 0)
+    ),
+    TetrominoType.J to listOf(
+        listOf(0 to -1, 0 to 0, 0 to 1, 1 to 1),
+        listOf(-1 to 0, 0 to 0, 1 to 0, 1 to -1),
+        listOf(0 to -1, -1 to -1, 0 to 0, 0 to 1),
+        listOf(-1 to 0, -1 to 1, 0 to 0, 1 to 0)
+    ),
+    TetrominoType.S to listOf(
+        listOf(0 to 0, 0 to 1, 1 to -1, 1 to 0),
+        listOf(-1 to 0, 0 to 0, 0 to 1, 1 to 1)
+    ),
+    TetrominoType.Z to listOf(
+        listOf(0 to -1, 0 to 0, 1 to 0, 1 to 1),
+        listOf(-1 to 1, 0 to 0, 0 to 1, 1 to 0)
+    )
+)
+
+private val tetrisPalette = listOf(
+    Color(0xFFC77966),
+    Color(0xFF8C4A2F),
+    Color(0xFFB86B34),
+    Color(0xFF6F4F28),
+    Color(0xFF9E5634),
+    Color(0xFF7E3E2C),
+    Color(0xFFC4873C)
+)
+
+private val runePalette = listOf(
+    Color(0xFF8E3B12),
+    Color(0xFFD97723),
+    Color(0xFF5A3E2B),
+    Color(0xFF9E6D3A),
+    Color(0xFF7C4F2A),
+    Color(0xFFB35C3D)
+)
+
+private fun TetrominoType.cells(rotation: Int): List<Pair<Int, Int>> {
+    val variants = tetrominoShapes[this] ?: emptyList()
+    if (variants.isEmpty()) return emptyList()
+    return variants[rotation % variants.size]
+}
+
+private fun TetrominoType.previewBounds(): Pair<IntRange, IntRange> {
+    val points = cells(0)
+    val rows = points.minOf { it.first }..points.maxOf { it.first }
+    val cols = points.minOf { it.second }..points.maxOf { it.second }
+    return rows to cols
+}
+
+private fun TetrominoType.color(): Color = tetrisPalette[ordinal % tetrisPalette.size]
+
+private fun JumpPowerType.color(): Color = when (this) {
+    JumpPowerType.FEATHERFALL -> Color(0xFFB26745)
+    JumpPowerType.RUNESPRING -> Color(0xFFE2A76F)
+    JumpPowerType.SKYBRIDGE -> Color(0xFF8B5E3C)
+    JumpPowerType.SIGILBLOOM -> Color(0xFFCA8243)
+    JumpPowerType.AEGIS -> Color(0xFFAA6F3D)
+}
+
+private fun RunnerPowerType.color(): Color = when (this) {
+    RunnerPowerType.BULWARK -> Color(0xFFAE7C45)
+    RunnerPowerType.TEMPO_VEIL -> Color(0xFF7F4B24)
+    RunnerPowerType.BANNER_CHARGE -> Color(0xFFD08752)
+    RunnerPowerType.LANE_PULSE -> Color(0xFF9D5C38)
+    RunnerPowerType.STRIDE_SURGE -> Color(0xFFB86B34)
+}
+
+private fun randomTetrominoType(): TetrominoType = TetrominoType.values().random()
 
 @Composable
 private fun FlappyFlightGame(
@@ -744,6 +901,17 @@ private fun SubwayRunGame(
                 }
             }
 
+            LaunchedEffect(gamePhase, runId, "jumpBuffClock") {
+                if (gamePhase != GamePhase.Playing) {
+                    buffClock = SystemClock.elapsedRealtime()
+                    return@LaunchedEffect
+                }
+                while (isActive) {
+                    buffClock = SystemClock.elapsedRealtime()
+                    delay(500L)
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -841,6 +1009,592 @@ private fun SubwayRunGame(
 }
 
 @Composable
+private fun TetrisSiegeGame(
+    state: TrainingGameUiState,
+    onSubmitResult: (elapsedMillis: Long, didWin: Boolean, score: Int) -> Unit,
+    onExit: () -> Unit,
+    onResetResult: () -> Unit,
+    onDifficultySelected: (Difficulty) -> Unit
+) {
+    val definition = state.definition ?: return
+    val behavior = definition.behavior
+    val density = LocalDensity.current
+    val difficulty = state.selectedDifficulty
+    val rows = max(12, behavior.boardHeight.takeIf { it > 0 } ?: 18)
+    val cols = max(8, behavior.boardWidth.takeIf { it > 0 } ?: 10)
+    val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 12
+    val targetLines = (baseTarget * difficulty.tetrisLineFactor()).roundToInt().coerceAtLeast(6)
+    val baseInterval = behavior.totalDurationMillis.takeIf { it > 0 } ?: 700
+    val dropInterval = (baseInterval / difficulty.tetrisSpeedMultiplier()).roundToInt().coerceAtLeast(180)
+
+    var gamePhase by remember(definition.id + "_tetris") { mutableStateOf(GamePhase.Idle) }
+    var runId by remember(definition.id + "_tetris") { mutableIntStateOf(0) }
+    val board = remember(definition.id + "_tetris") {
+        mutableStateListOf<Int>().apply {
+            repeat(rows * cols) { add(0) }
+        }
+    }
+    var currentPiece by remember(definition.id + "_tetris") { mutableStateOf<TetrominoInstance?>(null) }
+    val selectionPool = remember(definition.id + "_tetris") {
+        mutableStateListOf<TetrominoType>().apply {
+            repeat(3) { add(randomTetrominoType()) }
+        }
+    }
+    var pendingSelection by remember(definition.id + "_tetris") { mutableStateOf(false) }
+    var linesCleared by remember(definition.id + "_tetris") { mutableIntStateOf(0) }
+    var elapsedMillis by remember(definition.id + "_tetris") { mutableLongStateOf(0L) }
+    var startTimestamp by remember(definition.id + "_tetris") { mutableLongStateOf(0L) }
+
+    fun boardIndex(row: Int, col: Int) = row * cols + col
+
+    fun ensureSelectionPool() {
+        while (selectionPool.size < 3) {
+            selectionPool += randomTetrominoType()
+        }
+    }
+
+    fun resetState() {
+        for (i in board.indices) {
+            board[i] = 0
+        }
+        selectionPool.clear()
+        repeat(3) { selectionPool += randomTetrominoType() }
+        currentPiece = null
+        pendingSelection = false
+        linesCleared = 0
+        elapsedMillis = 0L
+    }
+
+    fun pieceCells(piece: TetrominoInstance): List<Pair<Int, Int>> =
+        piece.type.cells(piece.rotation).map { (dr, dc) -> piece.row + dr to piece.col + dc }
+
+    fun canPlace(piece: TetrominoInstance): Boolean {
+        val cells = pieceCells(piece)
+        for ((row, col) in cells) {
+            if (col !in 0 until cols) return false
+            if (row >= rows) return false
+            if (row >= 0 && board[boardIndex(row, col)] != 0) return false
+        }
+        return true
+    }
+
+    fun spawnPiece(type: TetrominoType): Boolean {
+        val piece = TetrominoInstance(
+            type = type,
+            rotation = 0,
+            row = -1,
+            col = (cols / 2) - 1
+        )
+        if (!canPlace(piece)) return false
+        currentPiece = piece
+        pendingSelection = false
+        return true
+    }
+
+    fun handleDefeat() {
+        val elapsed = elapsedMillis
+        onSubmitResult(elapsed, false, linesCleared)
+        gamePhase = GamePhase.Defeat
+    }
+
+    fun handleVictory() {
+        val elapsed = elapsedMillis
+        onSubmitResult(elapsed, true, linesCleared)
+        gamePhase = GamePhase.Victory
+    }
+
+    fun lockPiece() {
+        val piece = currentPiece ?: return
+        val cells = pieceCells(piece)
+        var overflow = false
+        cells.forEach { (row, col) ->
+            if (row < 0) {
+                overflow = true
+            } else {
+                board[boardIndex(row, col)] = piece.type.ordinal + 1
+            }
+        }
+        currentPiece = null
+        if (overflow) {
+            handleDefeat()
+            return
+        }
+        var cleared = 0
+        var row = rows - 1
+        while (row >= 0) {
+            val fullRow = (0 until cols).all { col -> board[boardIndex(row, col)] != 0 }
+            if (fullRow) {
+                cleared++
+                for (r in row downTo 1) {
+                    for (c in 0 until cols) {
+                        board[boardIndex(r, c)] = board[boardIndex(r - 1, c)]
+                    }
+                }
+                for (c in 0 until cols) {
+                    board[c] = 0
+                }
+                row++
+            }
+            row--
+        }
+        linesCleared += cleared
+        if (linesCleared >= targetLines) {
+            handleVictory()
+        } else {
+            pendingSelection = true
+        }
+    }
+
+    fun tryMove(deltaRow: Int, deltaCol: Int): Boolean {
+        val piece = currentPiece ?: return false
+        val shifted = piece.copy(row = piece.row + deltaRow, col = piece.col + deltaCol)
+        return if (canPlace(shifted)) {
+            currentPiece = shifted
+            true
+        } else {
+            false
+        }
+    }
+
+    fun rotate(clockwise: Boolean) {
+        val piece = currentPiece ?: return
+        val rotations = tetrominoShapes[piece.type]?.size ?: 1
+        if (rotations <= 1) return
+        val newRotation = if (clockwise) {
+            (piece.rotation + 1) % rotations
+        } else {
+            (piece.rotation - 1 + rotations) % rotations
+        }
+        val rotated = piece.copy(rotation = newRotation)
+        if (canPlace(rotated)) {
+            currentPiece = rotated
+        }
+    }
+
+    fun hardDrop() {
+        while (tryMove(1, 0)) {
+            // drop until collision
+        }
+        lockPiece()
+    }
+
+    fun handleSelection(index: Int) {
+        ensureSelectionPool()
+        if (!pendingSelection || gamePhase != GamePhase.Playing) return
+        val type = selectionPool.getOrNull(index) ?: return
+        val success = spawnPiece(type)
+        selectionPool[index] = randomTetrominoType()
+        if (!success) {
+            handleDefeat()
+        }
+    }
+
+    LaunchedEffect(gamePhase, runId) {
+        if (gamePhase != GamePhase.Playing) return@LaunchedEffect
+        startTimestamp = SystemClock.elapsedRealtime()
+        ensureSelectionPool()
+        while (isActive && gamePhase == GamePhase.Playing) {
+            val now = SystemClock.elapsedRealtime()
+            elapsedMillis = now - startTimestamp
+            if (currentPiece == null) {
+                pendingSelection = true
+            } else {
+                delay(dropInterval.toLong())
+                if (!tryMove(1, 0)) {
+                    lockPiece()
+                }
+            }
+            delay(8)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Header(definition = definition, state = state, elapsedMillis = elapsedMillis)
+
+        PowerUpTicker(
+            labels = if (pendingSelection && gamePhase == GamePhase.Playing) {
+                listOf("Select the next wardstone")
+            } else emptyList()
+        )
+
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF1C120B))
+        ) {
+            val widthPx = with(density) { maxWidth.toPx() }
+            val heightPx = with(density) { maxHeight.toPx() }
+            val cellSize = min(widthPx / cols, heightPx / rows)
+
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
+                drawRect(
+                    color = Color(0xFF1C120B),
+                    size = size
+                )
+
+                for (row in 0 until rows) {
+                    for (col in 0 until cols) {
+                        val value = board[boardIndex(row, col)]
+                        if (value > 0) {
+                            drawRect(
+                                color = tetrisPalette[(value - 1) % tetrisPalette.size],
+                                topLeft = Offset(col * cellSize, row * cellSize),
+                                size = Size(cellSize - 3f, cellSize - 3f)
+                            )
+                        }
+                    }
+                }
+
+                currentPiece?.let { piece ->
+                    pieceCells(piece).forEach { (row, col) ->
+                        if (row in 0 until rows && col in 0 until cols) {
+                            drawRect(
+                                color = piece.type.color(),
+                                topLeft = Offset(col * cellSize, row * cellSize),
+                                size = Size(cellSize - 3f, cellSize - 3f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Wardstone queue",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                selectionPool.forEachIndexed { index, type ->
+                    TetrominoPreview(
+                        type = type,
+                        enabled = pendingSelection && gamePhase == GamePhase.Playing,
+                        onSelected = { handleSelection(index) }
+                    )
+                }
+            }
+        }
+
+        ControlPanel(
+            phase = gamePhase,
+            definition = definition,
+            elapsedMillis = elapsedMillis,
+            score = linesCleared,
+            scoreLabel = "Lines sealed",
+            playingHint = "Tap a wardstone to send it into the breach. Use the controls to steer and rotate.",
+            defeatMessage = "The barricade overflowed with broken stones.",
+            lastResult = state.lastResult,
+            selectedDifficulty = state.selectedDifficulty,
+            onDifficultySelected = onDifficultySelected,
+            onStart = {
+                resetState()
+                onResetResult()
+                gamePhase = GamePhase.Playing
+                runId++
+            },
+            onRetry = {
+                resetState()
+                onResetResult()
+                gamePhase = GamePhase.Idle
+                runId++
+            },
+            onExit = onExit
+        )
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        if (gamePhase == GamePhase.Playing) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Button(
+                    onClick = { tryMove(0, -1) },
+                    enabled = currentPiece != null && !pendingSelection && gamePhase == GamePhase.Playing,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Left") }
+                Button(
+                    onClick = { rotate(true) },
+                    enabled = currentPiece != null && !pendingSelection && gamePhase == GamePhase.Playing,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Rotate") }
+                Button(
+                    onClick = { tryMove(0, 1) },
+                    enabled = currentPiece != null && !pendingSelection && gamePhase == GamePhase.Playing,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Right") }
+                Button(
+                    onClick = { if (currentPiece != null && !pendingSelection) hardDrop() },
+                    enabled = currentPiece != null && !pendingSelection && gamePhase == GamePhase.Playing,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Drop") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RuneMatchGame(
+    state: TrainingGameUiState,
+    onSubmitResult: (elapsedMillis: Long, didWin: Boolean, score: Int) -> Unit,
+    onExit: () -> Unit,
+    onResetResult: () -> Unit,
+    onDifficultySelected: (Difficulty) -> Unit
+) {
+    val definition = state.definition ?: return
+    val behavior = definition.behavior
+    val density = LocalDensity.current
+    val difficulty = state.selectedDifficulty
+    val rows = max(6, behavior.boardHeight.takeIf { it > 0 } ?: 7)
+    val cols = max(6, behavior.boardWidth.takeIf { it > 0 } ?: 7)
+    val baseTarget = behavior.targetScore.takeIf { it > 0 } ?: 800
+    val targetScore = (baseTarget * difficulty.matchScoreFactor()).roundToInt()
+    val baseMoves = behavior.moveLimit.takeIf { it > 0 } ?: 24
+    val moveLimit = max(6, (baseMoves * difficulty.matchMoveFactor()).roundToInt())
+
+    var gamePhase by remember(definition.id + "_rune") { mutableStateOf(GamePhase.Idle) }
+    var runId by remember(definition.id + "_rune") { mutableIntStateOf(0) }
+    val board = remember(definition.id + "_rune") {
+        mutableStateListOf<Int>().apply {
+            repeat(rows * cols) { add(Random.nextInt(runePalette.size)) }
+        }
+    }
+    var selection by remember(definition.id + "_rune") { mutableStateOf<RuneSelection?>(null) }
+    var score by remember(definition.id + "_rune") { mutableIntStateOf(0) }
+    var movesUsed by remember(definition.id + "_rune") { mutableIntStateOf(0) }
+    var elapsedMillis by remember(definition.id + "_rune") { mutableLongStateOf(0L) }
+    var startTimestamp by remember(definition.id + "_rune") { mutableLongStateOf(0L) }
+
+    fun boardIndex(row: Int, col: Int) = row * cols + col
+
+    fun randomRune(): Int = Random.nextInt(runePalette.size)
+
+    fun resetBoard() {
+        for (i in board.indices) {
+            board[i] = randomRune()
+        }
+        selection = null
+        score = 0
+        movesUsed = 0
+        elapsedMillis = 0L
+    }
+
+    fun swapCells(a: RuneSelection, b: RuneSelection) {
+        val idxA = boardIndex(a.row, a.col)
+        val idxB = boardIndex(b.row, b.col)
+        val temp = board[idxA]
+        board[idxA] = board[idxB]
+        board[idxB] = temp
+    }
+
+    fun findMatches(): Set<Int> {
+        val matches = mutableSetOf<Int>()
+        for (row in 0 until rows) {
+            var col = 0
+            while (col < cols) {
+                val start = col
+                val value = board[boardIndex(row, col)]
+                col++
+                while (col < cols && board[boardIndex(row, col)] == value) {
+                    col++
+                }
+                if (col - start >= 3) {
+                    for (c in start until col) {
+                        matches += boardIndex(row, c)
+                    }
+                }
+            }
+        }
+        for (col in 0 until cols) {
+            var row = 0
+            while (row < rows) {
+                val start = row
+                val value = board[boardIndex(row, col)]
+                row++
+                while (row < rows && board[boardIndex(row, col)] == value) {
+                    row++
+                }
+                if (row - start >= 3) {
+                    for (r in start until row) {
+                        matches += boardIndex(r, col)
+                    }
+                }
+            }
+        }
+        return matches
+    }
+
+    fun collapseBoard() {
+        for (col in 0 until cols) {
+            var writeRow = rows - 1
+            for (row in rows - 1 downTo 0) {
+                val value = board[boardIndex(row, col)]
+                if (value >= 0) {
+                    board[boardIndex(writeRow, col)] = value
+                    if (writeRow != row) {
+                        board[boardIndex(row, col)] = -1
+                    }
+                    writeRow--
+                }
+            }
+            while (writeRow >= 0) {
+                board[boardIndex(writeRow, col)] = randomRune()
+                writeRow--
+            }
+        }
+    }
+
+    fun resolveMatches(): Boolean {
+        val matches = findMatches()
+        if (matches.isEmpty()) return false
+        matches.forEach { board[it] = -1 }
+        collapseBoard()
+        score += matches.size * 10
+        return true
+    }
+
+    fun handleSwap(target: RuneSelection) {
+        val first = selection ?: run {
+            selection = target
+            return
+        }
+        if (first == target) {
+            selection = null
+            return
+        }
+        val adjacent = (first.row == target.row && abs(first.col - target.col) == 1) ||
+                (first.col == target.col && abs(first.row - target.row) == 1)
+        if (!adjacent) {
+            selection = target
+            return
+        }
+        swapCells(first, target)
+        if (resolveMatches()) {
+            movesUsed++
+            while (resolveMatches()) {
+                // continue clearing cascades
+            }
+            if (score >= targetScore) {
+                onSubmitResult(elapsedMillis, true, score)
+                gamePhase = GamePhase.Victory
+            } else if (movesUsed >= moveLimit) {
+                onSubmitResult(elapsedMillis, false, score)
+                gamePhase = GamePhase.Defeat
+            }
+        } else {
+            swapCells(first, target)
+        }
+        selection = null
+    }
+
+    LaunchedEffect(gamePhase, runId) {
+        if (gamePhase != GamePhase.Playing) return@LaunchedEffect
+        startTimestamp = SystemClock.elapsedRealtime()
+        while (isActive && gamePhase == GamePhase.Playing) {
+            elapsedMillis = SystemClock.elapsedRealtime() - startTimestamp
+            delay(200L)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Header(definition = definition, state = state, elapsedMillis = elapsedMillis)
+
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF1E140C))
+                .pointerInput(gamePhase, runId, selection) {
+                    detectTapGestures { offset ->
+                        if (gamePhase != GamePhase.Playing) return@detectTapGestures
+                        val cellSize = size.width / cols
+                        val col = (offset.x / cellSize).toInt().coerceIn(0, cols - 1)
+                        val row = (offset.y / cellSize).toInt().coerceIn(0, rows - 1)
+                        handleSwap(RuneSelection(row, col))
+                    }
+                }
+        ) {
+            val cellSize = with(density) { (maxWidth / cols).toPx() }
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawRect(color = Color(0xFF1E140C), size = size)
+                for (row in 0 until rows) {
+                    for (col in 0 until cols) {
+                        val value = board[boardIndex(row, col)]
+                        val color = if (value >= 0) runePalette[value % runePalette.size] else Color.Transparent
+                        drawRect(
+                            color = color,
+                            topLeft = Offset(col * cellSize, row * cellSize),
+                            size = Size(cellSize - 6f, cellSize - 6f),
+                            style = if (selection?.row == row && selection?.col == col) {
+                                Stroke(width = 4f)
+                            } else {
+                                Stroke(width = 0f)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        ControlPanel(
+            phase = gamePhase,
+            definition = definition,
+            elapsedMillis = elapsedMillis,
+            score = score,
+            scoreLabel = "Score",
+            playingHint = "Swap adjacent runes to harvest $targetScore essence within $moveLimit moves.",
+            defeatMessage = "The sandglass ran dry before enough runes were gathered.",
+            lastResult = state.lastResult,
+            selectedDifficulty = state.selectedDifficulty,
+            onDifficultySelected = onDifficultySelected,
+            onStart = {
+                resetBoard()
+                onResetResult()
+                var safeBoard = 0
+                while (safeBoard < 3 && resolveMatches()) {
+                    safeBoard++
+                }
+                gamePhase = GamePhase.Playing
+                runId++
+            },
+            onRetry = {
+                resetBoard()
+                onResetResult()
+                gamePhase = GamePhase.Idle
+                runId++
+            },
+            onExit = onExit
+        )
+    }
+}
+
+@Composable
 private fun DoodleJumpGame(
     state: TrainingGameUiState,
     onSubmitResult: (elapsedMillis: Long, didWin: Boolean, score: Int) -> Unit,
@@ -863,6 +1617,10 @@ private fun DoodleJumpGame(
     var playerY by remember { mutableStateOf(0f) }
     var playerVelocityX by remember { mutableStateOf(0f) }
     var playerVelocityY by remember { mutableStateOf(0f) }
+    val jumpPowerUps = remember(definition.id + "_jump_orbs") { mutableStateListOf<JumpPowerOrb>() }
+    var jumpBuffState by remember(definition.id + "_jump_buff") { mutableStateOf(JumpBuffState()) }
+    var lastJumpPowerSpawn by remember(definition.id + "_jump_spawn") { mutableLongStateOf(0L) }
+    var buffClock by remember(definition.id + "_jump_clock") { mutableLongStateOf(0L) }
 
     Column(
         modifier = Modifier
@@ -894,7 +1652,7 @@ private fun DoodleJumpGame(
             val platformWidthScale = difficulty.jumpPlatformWidthScale()
 
             LaunchedEffect(gamePhase, runId, widthPx, heightPx) {
-                if (gamePhase != GamePhase.Playing) {
+            if (gamePhase != GamePhase.Playing) {
                     val random = Random(runId * 311 + 7)
                     val spacing = heightPx / (platformCount - 1)
                     platforms.clear()
@@ -913,6 +1671,9 @@ private fun DoodleJumpGame(
                     playerVelocityY = 0f
                     heightClimbed = 0f
                     score = 0
+                jumpPowerUps.clear()
+                jumpBuffState = JumpBuffState()
+                lastJumpPowerSpawn = 0L
                 }
             }
 
@@ -926,8 +1687,8 @@ private fun DoodleJumpGame(
                 playerY = heightPx * 0.35f
                 playerVelocityX = 0f
                 playerVelocityY = 0f
-                val gravity = 2100f * difficulty.jumpGravityScale()
-                val jumpImpulse = -1350f * difficulty.jumpImpulseScale()
+                val baseGravity = 2100f * difficulty.jumpGravityScale()
+                val baseJumpImpulse = -1350f * difficulty.jumpImpulseScale()
                 val horizontalImpulse = (widthPx / 1.8f) * difficulty.jumpHorizontalScale()
                 val friction = 0.85f
                 val spacing = heightPx / (platformCount - 1)
@@ -946,6 +1707,24 @@ private fun DoodleJumpGame(
                     val deltaSeconds = deltaMillis / 1000f
                     lastTime = now
                     elapsedMillis = now - start
+
+                    val gravityBuff = if (now < jumpBuffState.featherUntil) 0.7f else 1f
+                    val jumpBuff = if (now < jumpBuffState.springUntil) 1.2f else 1f
+                    val gravity = baseGravity * gravityBuff
+                    val jumpImpulse = baseJumpImpulse * jumpBuff
+
+                    if (jumpPowerUps.size < 3 && now - lastJumpPowerSpawn > 4000L) {
+                        val anchor = platforms.randomOrNull()
+                        if (anchor != null) {
+                            jumpPowerUps += JumpPowerOrb(
+                                id = runId * 997 + jumpPowerUps.size,
+                                x = anchor.x + anchor.width / 2f,
+                                y = anchor.y - 28f,
+                                type = JumpPowerType.values().random()
+                            )
+                            lastJumpPowerSpawn = now
+                        }
+                    }
 
                     playerVelocityY += gravity * deltaSeconds
                     playerY += playerVelocityY * deltaSeconds
@@ -973,7 +1752,6 @@ private fun DoodleJumpGame(
                                 playerVelocityY = jumpImpulse
                                 break
                             }
-                        }
                     }
 
                     if (playerY < heightPx * 0.35f && playerVelocityY < 0f) {
@@ -1430,9 +2208,9 @@ private fun VictoryPanel(
                             " (${lastResult.bonusSigilGain} stance bonus)"
                         else -> ""
                     }
-                    "Sigils +$totalSigils $attributeLabel • XP +${lastResult.experienceGain} • ${lastResult.difficulty.displayName}$breakdown"
+                    "Sigils +$totalSigils $attributeLabel • ${lastResult.difficulty.displayName}$breakdown"
                 }
-                else -> "Sigils and experience gained."
+                else -> "Sigils gained."
             }
             Text(
                 text = subtitle,
@@ -1496,6 +2274,71 @@ private fun DefeatPanel(
         }
         TextButton(onClick = onExit) {
             Text(text = "Exit")
+        }
+    }
+}
+
+@Composable
+private fun PowerUpTicker(
+    labels: List<String>,
+    modifier: Modifier = Modifier
+) {
+    if (labels.isEmpty()) return
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        labels.forEach { label ->
+            Text(
+                text = label,
+                color = MaterialTheme.colorScheme.secondary,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TetrominoPreview(
+    type: TetrominoType,
+    enabled: Boolean,
+    onSelected: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(64.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .let { base ->
+                if (enabled) {
+                    base.clickable { onSelected() }
+                } else {
+                    base
+                }
+            }
+            .padding(6.dp)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val cellSize = size.width / 4f
+            val (rowBounds, colBounds) = type.previewBounds()
+            val rowOffset = -rowBounds.first
+            val colOffset = -colBounds.first
+            type.cells(0).forEach { (row, col) ->
+                val displayRow = row + rowOffset
+                val displayCol = col + colOffset
+                drawRect(
+                    color = type.color(),
+                    topLeft = Offset(displayCol * cellSize, displayRow * cellSize),
+                    size = Size(cellSize - 2f, cellSize - 2f)
+                )
+            }
         }
     }
 }

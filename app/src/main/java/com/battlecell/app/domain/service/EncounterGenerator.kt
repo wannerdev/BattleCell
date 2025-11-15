@@ -3,6 +3,7 @@ package com.battlecell.app.domain.service
 import com.battlecell.app.data.nearby.BluetoothDeviceInfo
 import com.battlecell.app.data.nearby.WifiDeviceInfo
 import com.battlecell.app.domain.model.CharacterAttributes
+import com.battlecell.app.domain.model.EncounterArchetype
 import com.battlecell.app.domain.model.EncounterProfile
 import com.battlecell.app.domain.model.EncounterSource
 import com.battlecell.app.domain.model.PlayerCharacter
@@ -33,7 +34,8 @@ class EncounterGenerator {
             attributes = styled.attributes,
             powerScore = styled.attributes.combatRating + powerBoost / 4,
             source = EncounterSource.WIFI,
-            deviceFingerprint = fingerprint
+            deviceFingerprint = fingerprint,
+            archetype = styled.archetype.toEncounterArchetype()
         )
     }
 
@@ -42,16 +44,21 @@ class EncounterGenerator {
         val hash = hashBytes(fingerprint)
         val styled = stylizeEncounter(hash, buildAttributes(hash.rotate()), player)
         val signalInfluence = max(0, info.rssi + 100)
+        val resolvedName = when (styled.archetype) {
+            Archetype.DRAGON -> DRAGON_NAME
+            else -> info.name?.takeIf { it.isNotBlank() } ?: styled.displayName
+        }
 
         return EncounterProfile(
             id = fingerprint,
-            displayName = styled.displayName,
+            displayName = resolvedName,
             title = styled.title,
             isPlayer = false,
             attributes = styled.attributes,
             powerScore = styled.attributes.combatRating + signalInfluence / 5,
             source = EncounterSource.BLUETOOTH,
-            deviceFingerprint = fingerprint
+            deviceFingerprint = fingerprint,
+            archetype = styled.archetype.toEncounterArchetype()
         )
     }
 
@@ -65,7 +72,9 @@ class EncounterGenerator {
                 attributes = primary.attributes.mergeWith(secondary.attributes),
                 powerScore = max(primary.powerScore, secondary.powerScore),
                 lastSeenEpoch = System.currentTimeMillis(),
-                source = secondary.source
+                source = secondary.source,
+                archetype = secondary.archetype,
+                isChallenged = primary.isChallenged || secondary.isChallenged
             )
         }
     }
@@ -82,7 +91,8 @@ class EncounterGenerator {
         return StyledEncounter(
             displayName = displayName,
             title = title,
-            attributes = tunedAttributes
+            attributes = tunedAttributes,
+            archetype = archetype
         )
     }
 
@@ -168,8 +178,8 @@ class EncounterGenerator {
     private fun buildDisplayName(archetype: Archetype, hash: ByteArray, title: String): String {
         val pool = if (archetype == Archetype.DRAGON) dragonNames else givenNames
         val index = hash[12].toPositiveInt() % pool.size
-        val name = pool[index]
-        return "$name the $title"
+        val baseName = if (archetype == Archetype.DRAGON) DRAGON_NAME else pool[index]
+        return "$baseName the $title"
     }
 
     private fun buildAttributes(hash: ByteArray): CharacterAttributes {
@@ -204,7 +214,8 @@ class EncounterGenerator {
     private data class StyledEncounter(
         val displayName: String,
         val title: String,
-        val attributes: CharacterAttributes
+        val attributes: CharacterAttributes,
+        val archetype: Archetype
     )
 
     private enum class Archetype {
@@ -218,5 +229,13 @@ class EncounterGenerator {
         private const val KNIGHT_THRESHOLD = 100
         private const val PALADIN_THRESHOLD = 200
         private const val DRAGON_CHANCE_PERCENT = 4
+        private const val DRAGON_NAME = "Mechtdor the Vengeful"
+    }
+
+    private fun Archetype.toEncounterArchetype(): EncounterArchetype = when (this) {
+        Archetype.OUTLAW -> EncounterArchetype.OUTLAW
+        Archetype.KNIGHT -> EncounterArchetype.KNIGHT
+        Archetype.PALADIN -> EncounterArchetype.PALADIN
+        Archetype.DRAGON -> EncounterArchetype.DRAGON
     }
 }
