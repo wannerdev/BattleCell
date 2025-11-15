@@ -77,6 +77,12 @@ class BattleViewModel(
         val state = uiState.value
         val player = state.player ?: return
         val opponent = state.opponent ?: return
+        if (opponent.archetype == EncounterArchetype.DRAGON && !player.inventory.hasSapphirePotion) {
+            viewModelScope.launch {
+                toastMessage.value = "You are not ready to fight him yet, search for the sapphire potion."
+            }
+            return
+        }
         when (state.comparison) {
               StrengthComparison.PLAYER_ADVANTAGE -> resolveVictory(player, opponent, previewRewards(state.comparison, player, opponent))
             StrengthComparison.NPC_ADVANTAGE -> finalizeDefeat(player, "The rival's strength overwhelmed you.")

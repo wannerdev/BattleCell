@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -538,6 +539,7 @@ private fun FlappyFlightGame(
     val behavior = definition.behavior
     val density = LocalDensity.current
     val difficulty = state.selectedDifficulty
+    val gateTarget = (behavior.targetScore.takeIf { it > 0 } ?: 16).coerceAtLeast(8)
 
     var gamePhase by remember(definition.id + "_flappy") { mutableStateOf(GamePhase.Idle) }
     var runId by remember(definition.id + "_flappy") { mutableIntStateOf(0) }
@@ -570,8 +572,8 @@ private fun FlappyFlightGame(
               val birdX = widthPx * 0.28f
               val pipeWidth = with(density) { 52.dp.toPx() }
               val pipeSpacing = widthPx * (0.45f * difficulty.flappySpacingFactor())
-              val missionDuration =
-                  ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
+            val missionDuration =
+                ((behavior.totalDurationMillis.takeIf { it > 0 } ?: 45_000) * difficulty.flappyDurationFactor()).roundToInt()
               val gapFactor = difficulty.flappyGapScale()
               val speedScale = difficulty.flappySpeedScale()
               val gravity = 1200f * speedScale
@@ -628,8 +630,8 @@ private fun FlappyFlightGame(
                     lastTime = now
                     elapsedMillis = now - start
 
-                    if (elapsedMillis >= missionDuration) {
-                        finishRound(true)
+                    if (elapsedMillis >= missionDuration && localScore < gateTarget) {
+                        finishRound(false)
                         break
                     }
 
@@ -677,6 +679,10 @@ private fun FlappyFlightGame(
 
                     score = localScore
 
+                    if (localScore >= gateTarget) {
+                        finishRound(true)
+                        break
+                    }
                     if (defeated) {
                         finishRound(false)
                         break
@@ -750,7 +756,7 @@ private fun FlappyFlightGame(
             elapsedMillis = elapsedMillis,
             score = score,
             scoreLabel = "Gates cleared",
-            playingHint = "Tap to give your falcon lift. Thread the warded pylons.",
+            playingHint = "Tap to keep altitude. Clear $gateTarget pennant gates before time expires.",
             defeatMessage = "The scout clipped a charged pylon.",
             lastResult = state.lastResult,
             selectedDifficulty = state.selectedDifficulty,
@@ -793,6 +799,9 @@ private fun SubwayRunGame(
     var score by remember { mutableIntStateOf(0) }
     var playerLane by remember { mutableIntStateOf(1) }
     val obstacles = remember { mutableStateListOf<RunnerObstacle>() }
+    val runnerPowerUps = remember(definition.id + "_runner_orbs") { mutableStateListOf<RunnerPowerOrb>() }
+    var runnerBuffState by remember(definition.id + "_runner_buff") { mutableStateOf(RunnerBuffState()) }
+    var lastRunnerOrbSpawn by remember(definition.id + "_runner_spawn") { mutableLongStateOf(0L) }
 
     Column(
         modifier = Modifier
@@ -801,6 +810,15 @@ private fun SubwayRunGame(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Header(definition = definition, state = state, elapsedMillis = elapsedMillis)
+        val runnerBuffLabels = remember(runnerBuffState) {
+            val now = SystemClock.elapsedRealtime()
+            buildList {
+                if (runnerBuffState.shieldCharges > 0) add("Bulwark x${runnerBuffState.shieldCharges}")
+                if (now < runnerBuffState.tempoUntil) add("Tempo veil")
+                if (now < runnerBuffState.strideUntil) add("Stride surge")
+            }
+        }
+        PowerUpTicker(labels = runnerBuffLabels)
 
         BoxWithConstraints(
             modifier = Modifier
@@ -831,6 +849,9 @@ private fun SubwayRunGame(
                     score = 0
                     playerLane = 1
                     elapsedMillis = 0L
+                    runnerPowerUps.clear()
+                    runnerBuffState = RunnerBuffState()
+                    lastRunnerOrbSpawn = 0L
                 }
             }
 
@@ -860,7 +881,9 @@ private fun SubwayRunGame(
                         break
                     }
 
-                    val speed = ((heightPx / 2.6f) + (elapsedMillis / 4000f)) * difficulty.runnerSpeedScale()
+                    val baseSpeed = ((heightPx / 2.6f) + (elapsedMillis / 4000f)) * difficulty.runnerSpeedScale()
+                    val tempoFactor = if (now < runnerBuffState.tempoUntil) 0.78f else 1f
+                    val speed = baseSpeed * tempoFactor
 
                     for (index in obstacles.indices) {
                         val obstacle = obstacles[index]
@@ -872,8 +895,12 @@ private fun SubwayRunGame(
                                 newY < playerY + avatarRadius
 
                         if (collision) {
-                            finishRound(false)
-                            return@LaunchedEffect
+                            if (runnerBuffState.shieldCharges > 0) {
+                                runnerBuffState = runnerBuffState.copy(shieldCharges = runnerBuffState.shieldCharges - 1)
+                            } else {
+                                finishRound(false)
+                                return@LaunchedEffect
+                            }
                         }
 
                         if (!obstacle.passed && newY > playerY + avatarRadius) {
@@ -897,11 +924,50 @@ private fun SubwayRunGame(
 
                     score = localScore
 
+                    if (runnerPowerUps.size < 2 && now - lastRunnerOrbSpawn > 4_500L) {
+                        val orbLane = Random.nextInt(laneCount)
+                        runnerPowerUps += RunnerPowerOrb(
+                            id = runId * 997 + runnerPowerUps.size,
+                            lane = orbLane,
+                            y = -60f,
+                            type = RunnerPowerType.values().random()
+                        )
+                        lastRunnerOrbSpawn = now
+                    }
+
+                    for (i in runnerPowerUps.indices.reversed()) {
+                        val orb = runnerPowerUps[i]
+                        val newY = orb.y + speed * 0.75f * deltaSeconds
+                        if (newY > heightPx + 40f) {
+                            runnerPowerUps.removeAt(i)
+                            continue
+                        }
+                        runnerPowerUps[i] = orb.copy(y = newY)
+                        val playerCenterLane = playerLane
+                        if (orb.lane == playerCenterLane && abs(newY - playerY) < avatarRadius + 28f) {
+                            runnerPowerUps.removeAt(i)
+                            when (orb.type) {
+                                RunnerPowerType.BULWARK -> runnerBuffState =
+                                    runnerBuffState.copy(shieldCharges = (runnerBuffState.shieldCharges + 1).coerceAtMost(3))
+                                RunnerPowerType.TEMPO_VEIL -> runnerBuffState =
+                                    runnerBuffState.copy(tempoUntil = now + 5_000L)
+                                RunnerPowerType.BANNER_CHARGE -> localScore += 2
+                                RunnerPowerType.LANE_PULSE -> {
+                                    if (obstacles.isNotEmpty()) {
+                                        obstacles.removeAt(0)
+                                    }
+                                }
+                                RunnerPowerType.STRIDE_SURGE -> runnerBuffState =
+                                    runnerBuffState.copy(strideUntil = now + 4_000L)
+                            }
+                        }
+                    }
+
                     delay(16)
                 }
             }
 
-            LaunchedEffect(gamePhase, runId, "jumpBuffClock") {
+            LaunchedEffect(gamePhase, runId, "jumpBuffTicker") {
                 if (gamePhase != GamePhase.Playing) {
                     buffClock = SystemClock.elapsedRealtime()
                     return@LaunchedEffect
@@ -916,15 +982,16 @@ private fun SubwayRunGame(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(gamePhase, runId) {
-                        detectTapGestures { offset ->
-                            if (gamePhase == GamePhase.Playing) {
-                                val tappedLane = (offset.x / laneWidth).toInt().coerceIn(0, laneCount - 1)
-                                when {
-                                    tappedLane < playerLane -> playerLane = (playerLane - 1).coerceAtLeast(0)
-                                    tappedLane > playerLane -> playerLane = (playerLane + 1).coerceAtMost(laneCount - 1)
-                                }
-                            }
-                        }
+                          detectTapGestures { offset ->
+                              if (gamePhase == GamePhase.Playing) {
+                                  val tappedLane = (offset.x / laneWidth).toInt().coerceIn(0, laneCount - 1)
+                                  val strideActive = SystemClock.elapsedRealtime() < runnerBuffState.strideUntil
+                                  when {
+                                      tappedLane < playerLane -> playerLane = if (strideActive) tappedLane else (playerLane - 1).coerceAtLeast(0)
+                                      tappedLane > playerLane -> playerLane = if (strideActive) tappedLane else (playerLane + 1).coerceAtMost(laneCount - 1)
+                                  }
+                              }
+                          }
                     }
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -946,7 +1013,7 @@ private fun SubwayRunGame(
                         )
                     }
 
-                    obstacles.forEach { obstacle ->
+                      obstacles.forEach { obstacle ->
                         val laneCenter = laneWidth * (obstacle.lane + 0.5f)
                         drawRoundRect(
                             color = Color(0xFFFF8A65),
@@ -960,6 +1027,20 @@ private fun SubwayRunGame(
                     }
 
                     val playerCenterX = laneWidth * (playerLane + 0.5f)
+                      runnerPowerUps.forEach { orb ->
+                          val laneCenter = laneWidth * (orb.lane + 0.5f)
+                          drawCircle(
+                              color = orb.type.color(),
+                              radius = avatarRadius * 0.6f,
+                              center = Offset(laneCenter, orb.y)
+                          )
+                          drawCircle(
+                              color = Color.White.copy(alpha = 0.5f),
+                              radius = avatarRadius * 0.25f,
+                              center = Offset(laneCenter - 6f, orb.y - 6f)
+                          )
+                      }
+
                       drawSkillGlyph(
                           attributeType = AttributeType.ENDURANCE,
                           center = Offset(playerCenterX, playerY),
@@ -1752,6 +1833,35 @@ private fun DoodleJumpGame(
                                 playerVelocityY = jumpImpulse
                                 break
                             }
+                        }
+                    }
+
+                    val orbIterator = jumpPowerUps.listIterator()
+                    while (orbIterator.hasNext()) {
+                        val orb = orbIterator.next()
+                        val dx = playerX - orb.x
+                        val dy = playerY - orb.y
+                        val pickupRadius = avatarRadius + 22f
+                        if (dx * dx + dy * dy <= pickupRadius * pickupRadius) {
+                            orbIterator.remove()
+                            when (orb.type) {
+                                JumpPowerType.FEATHERFALL -> jumpBuffState =
+                                    jumpBuffState.copy(featherUntil = now + 6_000L)
+                                JumpPowerType.RUNESPRING -> jumpBuffState =
+                                    jumpBuffState.copy(springUntil = now + 6_000L)
+                                JumpPowerType.SKYBRIDGE -> {
+                                    val bridgeWidth = widthPx * 0.35f
+                                    val newPlatform = JumpPlatform(
+                                        x = (orb.x - bridgeWidth / 2f).coerceIn(0f, widthPx - bridgeWidth),
+                                        y = (playerY - 160f).coerceAtLeast(40f),
+                                        width = bridgeWidth
+                                    )
+                                    platforms.add(newPlatform)
+                                }
+                                JumpPowerType.SIGILBLOOM -> score += 60
+                                JumpPowerType.AEGIS -> jumpBuffState = jumpBuffState.copy(hasAegis = true)
+                            }
+                        }
                     }
 
                     if (playerY < heightPx * 0.35f && playerVelocityY < 0f) {
@@ -1786,8 +1896,15 @@ private fun DoodleJumpGame(
                     }
 
                     if (playerY - avatarRadius > heightPx) {
-                        finishRound(false)
-                        break
+                        if (jumpBuffState.hasAegis) {
+                            jumpBuffState = jumpBuffState.copy(hasAegis = false)
+                            playerY = heightPx * 0.3f
+                            playerVelocityY = 0f
+                            playerVelocityX = 0f
+                        } else {
+                            finishRound(false)
+                            break
+                        }
                     }
 
                     delay(16)
@@ -1825,6 +1942,19 @@ private fun DoodleJumpGame(
                             topLeft = Offset(platform.x, platform.y),
                             size = Size(platform.width, platformHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
+                        )
+                    }
+
+                    jumpPowerUps.forEach { orb ->
+                        drawCircle(
+                            color = orb.type.color(),
+                            radius = 18f,
+                            center = Offset(orb.x, orb.y)
+                        )
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.6f),
+                            radius = 6f,
+                            center = Offset(orb.x - 4f, orb.y - 4f)
                         )
                     }
 
